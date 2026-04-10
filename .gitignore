@@ -7,6 +7,7 @@ __pycache__
 .idea
 db.sqlite3
 media
+*.DS_Store
 
 # Backup files #
 *.bak
