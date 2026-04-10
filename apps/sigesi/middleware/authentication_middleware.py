@@ -15,6 +15,8 @@ class JWTAuthentication(BaseJWTAuthentication):
     EXEMPT_PATHS = [
         '/swagger/',
         '/redoc/',
+        '/api/v1/auth/login/',
+        '/api/v1/auth/refresh/',
     ]
 
     def authenticate(self, request):

@@ -22,8 +22,10 @@ urlpatterns = [
     path('panel_admin_sigesi_api/', admin.site.urls),
     # Health & Ping
     path('api/v1/', include('apps.sigesi.routers.health')),
+    # Auth
+    path('api/v1/auth/', include('apps.sigesi.routers.auth.auth_urls')),
     # Apps
-    # path('api/users/', include('apps.users.urls')),
+    # path('api/v1/users/', include('apps.users.urls')),
     # Swagger / Documentación
     path('swagger/', schema_view.with_ui('swagger',
          cache_timeout=0), name='schema-swagger-ui'),
