@@ -1,108 +1,58 @@
-# Arquitectura de la Carpeta `apps`
+# Guía de Arquitectura del Proyecto (Carpeta `apps`)
 
-Este documento describe la estructura y arquitectura interna del directorio `apps`, el cual contiene las aplicaciones principales y dependencias de negocio para el proyecto _NeoDental Manager API_.
+Este documento establece las normativas, estructura y patrones arquitectónicos adoptados para el desarrollo dentro del directorio `apps`. Está enfocado en garantizar un código altamente cohesivo, escalable y mantenible para el proyecto, tomando como referencia el contexto delimitado por la aplicación central (por ejemplo, `apps/sigesi` o equivalente).
 
-## Estructura de Directorios
+## 1. Principios Arquitectónicos Base
 
-La carpeta `apps` está organizada en los siguientes subdirectorios principales:
+1. **Modularidad Estricta:** Todo el código de dominio y la lógica de negocio deben vivir dentro de un módulo central bajo `apps/` (por default `apps/sigesi`). No se deben crear aplicaciones Django diseminadas por el proyecto.
+2. **Separación de Responsabilidades:** 
+   - La validación de datos de entrada/salida recae única y exclusivamente en los **`serializers/`**.
+   - La orquestación y las respuestas HTTP recaen en las **`views/`**.
+   - Los permisos de acceso se encapsulan en **`permissions.py`** y los **`decorators/`**.
+   - El enrutamiento no debe ser monolítico, sino que se divide lógicamente en la carpeta **`routers/`**.
+
+## 2. Estructura de Directorios Requerida
+
+El ecosistema arquitectónico dentro del directorio principal del módulo debe seguir esta estandarización obligatoria:
 
 ```plaintext
 apps/
-├── neodental/          # Aplicación principal de Django
-│   ├── apps.py         # Configuración del app
-│   ├── models.py       # Definición de los modelos de base de datos
-│   ├── permissions.py  # Clases personalizadas de permisos y roles de usuario
-│   ├── decorators/     # Decoradores personalizados para vistas/controladores
-│   │   └── decorator.py
-│   ├── middlewares/    # Custom middlewares para la aplicación
-│   │   └── authentication_middleware.py
-│   ├── migrations/     # Migraciones de las base de datos
-│   ├── routers/        # Configuración de URLs y enrutadores (DRF)
-│   │   ├── auth/
-│   │   │   └── auth_urls.py
-│   │   ├── citas/
-│   │   │   └── citas_urls.py
-│   │   ├── config/
-│   │   │   ├── agenda_urls.py
-│   │   │   ├── bloqueo_horario_urls.py
-│   │   │   ├── gestion_financiera_urls.py
-│   │   │   ├── persona_urls.py
-│   │   │   ├── rbac_urls.py
-│   │   │   ├── rol_urls.py
-│   │   │   ├── tipo_consulta_urls.py
-│   │   │   ├── tipo_documento_urls.py
-│   │   │   └── usuarios_urls.py
-│   │   └── historialClinico/
-│   │       └── h_clinico_urls.py
-│   ├── serializers/    # Serializadores para las APIs
-│   │   ├── auth/
-│   │   │   ├── login_serializer.py
-│   │   │   ├── logout_serializer.py
-│   │   │   └── update_password_serializer.py
-│   │   ├── citas/
-│   │   │   └── citas_serializer.py
-│   │   ├── config/
-│   │   │   ├── agenda_serializer.py
-│   │   │   ├── bloqueo_horario_serializer.py
-│   │   │   ├── gestion_financiera_serializer.py
-│   │   │   ├── persona_serializer.py
-│   │   │   ├── rbac_serializer.py
-│   │   │   ├── rol_serializer.py
-│   │   │   ├── tipo_consulta_serializer.py
-│   │   │   ├── tipo_documento_serializer.py
-│   │   │   └── usuario_serializer.py
-│   │   └── historialClinico/
-│   │       └── h_clinico_serializer.py
-│   ├── templates/      # Plantillas HTML genéricas o de correo
-│   │   ├── agenda_cita.html
-│   │   └── factura_electronica.html
-│   ├── utils/          # Funciones utilitarias y helpers compartidos
-│   │   ├── jwt_handler.py
-│   │   ├── send_mail.py
-│   │   ├── throttles.py
-│   │   └── time.py
-│   └── views/          # Lógica de la API orientada a las respuestas
-│       ├── auth/
-│       │   ├── login_view.py
-│       │   └── logout_view.py
-│       ├── citas/
-│       │   └── citas_view.py
-│       ├── config/
-│       │   ├── agenda_view.py
-│       │   ├── bloqueo_horario_view.py
-│       │   ├── gestion_financiera_view.py
-│       │   ├── persona_view.py
-│       │   ├── rbac_view.py
-│       │   ├── rol_view.py
-│       │   ├── tipo_consulta_view.py
-│       │   ├── tipo_documento_view.py
-│       │   └── usuarios_view.py
-│       └── historialClinico/
-│           └── h_clinico_view.py
-└── services/           # Lógica de integración de servicios externos
-    └── factus_services.py # Integración con la API de "Factus" u otros servicios
+├── [app_principal]/    # Aplicación principal del dominio (ej: 'sigesi')
+│   ├── models.py       # Definición exhaustiva de entidades (Capa de datos)
+│   ├── permissions.py  # Reglas de negocio para autorización y roles de usuario
+│   ├── decorators/     # Decoradores personalizados para endpoints y servicios
+│   ├── middlewares/    # Interceptores a nivel de aplicación (ej. Contexto JWT)
+│   ├── routers/        # Directorios de enrutamiento modulares agrupados por entidad
+│   ├── serializers/    # Transformadores, DTOs y lógica de validación de negocio
+│   ├── templates/      # Archivos de vista (HTML, reportes, correos electrónicos)
+│   ├── utils/          # Helpers, handlers de tokens, envíos de correo, lógicas transversales
+│   └── views/          # Módulos de vistas separados lógicamente por entidades/endpoints
+└── services/           # (Opcional en la raíz apps/) Capas de integración y clientes para APIs externas
 ```
 
-## Descripción de Componentes
+## 3. Descripción y Reglas por Componente
 
-### 1. `neodental/`
+### Capa de Datos (`models.py`)
+- Se favorece la creación y mantenimiento del esquema en un único archivo consolidado por aplicación. 
+- Deben incluir representaciones lógicas consistentes (`__str__`) explícitas, así como subclases `Meta` con los nombres precisos de las tablas de base de datos relacional. No se aceptan modelos anémicos.
 
-Esta es la aplicación Django principal que maneja los recursos transaccionales y operaciones de la clínica/entidad. Sigue una arquitectura limpia orientada hacia las APIs empleando **Django Rest Framework (DRF)**.
+### Capa de Presentación / Controladores (`views/`)
+- **Prohibido:** Un archivo `views.py` extenso. 
+- Cada entidad o modelo lógico debe tener su propia vista o conjunto de vistas separadas en archivos individuales dentro del directorio `views/` y agrupadas en subcarpetas si ameritan. 
+- Todas las salidas se enmarcan en **Django Rest Framework (DRF)** utilizando funciones decoradas (`@api_view`) acompañadas de Open API specifications (ej: `drf-yasg` o `drf-spectacular`).
 
-- **Models (`models.py`)**: Define el esquema de la base de datos (Entidades principales como pacientes, citas, tratamientos, etc.).
-- **Views (`views/`)**: Implementa los endpoints HTTP y maneja la lógica de negocio que responde al cliente.
-- **Serializers (`serializers/`)**: Es la capa responsable de transformar la información de los modelos a un formato JSON entendible por el frontend y viceversa para el registro y actualización de datos.
-- **Routers (`routers/`)**: Abstrae las configuraciones de URL de manera auto-gestionada para conectar con las ViewSets o las `views`.
-- **Permissions (`permissions.py`) & Decorators (`decorators/`) & Middlewares (`middlewares/`)**: Encargados de la verificación de autorizaciones y validación del acceso a los recursos de manera global o a nivel de endpoint.
+### Capa de Validación (`serializers/`)
+- Cualquier tipo de input proveniente del frontend, antes de interactuar con la base de datos o lógica pesada, debe ser instanciado y verificado por medio de un serializador (`serializers.Serializer` o `serializers.ModelSerializer`).
+- Aquí residen los validadores a nivel de campo o de objeto general.
 
-### 2. `services/`
+### Capa de Enrutamiento (`routers/`)
+- Mantiene las rutas abstraídas e independientes. Dentro de `routers/`, se crean carpetas o archivos que mapeen de forma directa 1-a-1 hacia las vistas. Dichos archivos definen localmente su propio árbol de `urlpatterns`.
 
-A diferencia de `neodental`, la carpeta `services` abstrae lógicas de terceros que no conciernen a los modelos o la API de forma directa (Separación de Responsabilidades o Patrón Service Layer).
+### Capa de Servicios (`services/` y `utils/`)
+- Toda lógica "pesada" que no sea puramente una validación (`serializer`) ni responder un HTTP request (`view`), como la manipulación de JWT estricta o llamadas a proveedores externos, debe delegarse a una clase Helper en `utils` o a un Servicio en `services/`. Esto en pos de mantener el Controlador delgado.
 
-- **Factus Services (`factus_services.py`)**: Archivo destinado a la comunicación o integración con APIs externas u operaciones complejas y transaccionales como facturación.
+## 4. Patrones de Diseño Implementados
 
-## Patrones de Diseño Detectados
-
-- **Model-View-Controller/Model-View-Template (MVC/MVT):** Estructura base de Django.
-- **Service Layer Pattern:** Movimiento evidente de la lógica relacionada al consumo de servicios y procesos pesados ajenos a la Vista hacia la carpeta de `services/`.
-- **Clean Architecture (Approximation):** Separación de la validación de Payload (`serializers`) y la autorización (`permissions`), manteniendo la lógica de ruteo (`routers`) aislada.
+- **Service Layer Pattern (Capa de Servicio):** Consiste en separar lógicas de terceros y código complejo en directorios abstractos (`services/`, `utils/`) para evitar el acoplamiento duro entre controladores y lógica externa, haciendo el backend agnóstico.
+- **Data Transfer Object (DTO):** Patrón abstraído detrás del fuerte uso de Serializadores DRF tanto para Ingress (`RequestSerializer`) como Egress (`ResponseSerializer`), garantizando una tipificación consistente orientada al front-end.
+- **RESTful Architecture:** Todo controlador debe acatar en nombramiento y acciones a la arquitectura REST, utilizando códigos formales HTTP, validaciones puras y verbos idóneos.
