@@ -42,3 +42,6 @@ Use this skill when developing, refactoring, or adding new features to the proje
 ## Technology Stack Alignment
 - **API Framework:** Django Rest Framework (DRF). Use Response, status, and api_view imports from `rest_framework`.
 - **Database:** Assume PostgreSQL backend operations and maintain compatibility. Include `django.db` connections or handles carefully if executing raw queries, although ORM is strictly preferred.
+
+## Reference Architecture
+- **Architecture Guidelines:** Always refer to the [arquitectura_apps.md](arquitectura_apps.md) file as an additional guide to understand the specific components layout, internal directory responsibilities, and structural patterns expected within the application module.
