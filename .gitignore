@@ -108,7 +108,6 @@ ENV/
 env.bak/
 venv.bak/
 .sigesi_api/
-.agents/skills
 
 # mkdocs documentation
 /site
