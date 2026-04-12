@@ -45,6 +45,13 @@ description: Guidelines and best practices for developing professional Django ap
 - Do not rely on Django's session or cookie-based authentication for APIs consumed by decoupled frontends (like React, Next.js, or mobile apps).
 - Ensure the frontend stores tokens securely and includes the access token in the `Authorization: Bearer <token>` header for protected resource requests.
 
+### 7. Role-Based Access Control (RBAC)
+- **Role Assignment:** Avoid assigning permissions directly to individual users. Instead, assign users to **Roles** (e.g., administrator, student) and link permissions to those Roles for better scalability.
+- **Custom Permission Models:** Create custom domain models (e.g., `Permiso`, `Opcion`, `Menu`) to manage fine-grained, dynamic access control if Django's default permission system does not fit the business logic.
+- **Backend Validation:** Always enforce RBAC on the backend. Create custom DRF `BasePermission` classes or utility methods (e.g., `user.tiene_permiso('CODIGO')`) to validate access before completing sensitive actions or queries.
+- **Dynamic Frontend Navigation:** Expose a dedicated API endpoint that returns only the specific UI components (menus, submenus) the authenticated user's role is authorized to view.
+- **Unique Action Codes:** Identify specific actions or options using unique, immutable action codes (e.g., `USER_CREATE`, `PROJECT_APPROVE`) to keep permission evaluations decoupled from database IDs or display names.
+
 ## Tools and Scripts
 - Use `python manage.py inspectdb` if you are ever integrating with existing PostgreSQL schemas.
 - Use `python manage.py dbshell` to access the PostgreSQL command-line client (`psql`) directly.
