@@ -22,6 +22,11 @@ urlpatterns = [
     path('panel_admin_sigesi_api/', admin.site.urls),
     # Health & Ping
     path('api/v1/', include('apps.sigesi.routers.health')),
+    
+    # Config & RBAC
+    path('api/v1/config/', include('apps.sigesi.routers.config.rbac_urls')),
+    path('api/v1/config/', include('apps.sigesi.routers.config.users_urls')),
+
     # Apps
     # path('api/users/', include('apps.users.urls')),
     # Swagger / Documentación
