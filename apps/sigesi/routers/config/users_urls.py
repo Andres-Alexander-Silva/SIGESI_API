@@ -1,6 +1,7 @@
-from django.urls import path
-from apps.sigesi.views.config.user_view import create_user
+from rest_framework.routers import DefaultRouter
+from apps.sigesi.views.config.user_view import UserViewSet
 
-urlpatterns = [
-    path('users/', create_user, name='create_user'),
-]
+router = DefaultRouter()
+router.register(r'users', UserViewSet, basename='users')
+
+urlpatterns = router.urls
