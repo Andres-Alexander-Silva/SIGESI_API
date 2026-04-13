@@ -14,6 +14,7 @@ from apps.sigesi.serializers.config.user_serializer import (
 )
 
 
+
 class UserViewSet(viewsets.ModelViewSet):
     """
     ViewSet CRUD para la gestión de usuarios del sistema.
@@ -177,35 +178,49 @@ class UserViewSet(viewsets.ModelViewSet):
         method='get',
         operation_summary="Mis menús, opciones y permisos",
         operation_description=(
-            "Retorna todos los menús accesibles para el usuario autenticado, "
-            "junto con sus opciones y el permiso asociado según su rol. "
-            "Solo se incluyen menús y opciones activos con `permitido=true`."
+            "Retorna los menús del usuario autenticado con sus opciones. "
+            "Cada opción incluye los 4 permisos CRUD del rol: "
+            "`puede_consultar`, `puede_crear`, `puede_actualizar`, `puede_eliminar`."
         ),
         responses={
             200: openapi.Response(
-                description="Estructura de menús con opciones y permisos del usuario",
+                description="Menús con opciones y permisos CRUD del usuario",
                 examples={
                     "application/json": {
-                        "rol": "estudiante",
+                        "rol": "director_semillero",
                         "menus": [
                             {
                                 "id": 1,
-                                "nombre": "Semilleros",
-                                "icono": "fa-flask",
-                                "orden": 1,
-                                "url": "/semilleros",
-                                "menu_padre": None,
+                                "nombre": "Dashboard",
+                                "icono": "fa-gauge",
                                 "opciones": [
                                     {
-                                        "id": 3,
-                                        "nombre": "Ver semilleros",
-                                        "codigo": "semilleros.ver",
-                                        "descripcion": "",
-                                        "accion": "ver",
-                                        "permiso": {"id": 5, "permitido": True},
+                                        "id": 1,
+                                        "nombre": "Dashboard",
+                                        "url": "/dashboard",
+                                        "puede_consultar": True,
+                                        "puede_crear": False,
+                                        "puede_actualizar": False,
+                                        "puede_eliminar": False,
                                     }
                                 ],
-                            }
+                            },
+                            {
+                                "id": 2,
+                                "nombre": "Semilleros",
+                                "icono": "fa-flask",
+                                "opciones": [
+                                    {
+                                        "id": 2,
+                                        "nombre": "Semilleros",
+                                        "url": "/semilleros",
+                                        "puede_consultar": True,
+                                        "puede_crear": False,
+                                        "puede_actualizar": True,
+                                        "puede_eliminar": False,
+                                    }
+                                ],
+                            },
                         ],
                     }
                 },
@@ -219,11 +234,10 @@ class UserViewSet(viewsets.ModelViewSet):
     def mis_permisos(self, request):
         user = request.user
         menus = Menu.objects.filter(
+            estado=True,
+            opciones__estado=True,
             opciones__permisos__rol=user.rol,
-            opciones__permisos__permitido=True,
-            opciones__is_active=True,
-            is_active=True,
-        ).distinct().order_by('orden')
+        ).distinct()
 
         serializer = MenuPerfilSerializer(
             menus, many=True, context={'rol': user.rol}

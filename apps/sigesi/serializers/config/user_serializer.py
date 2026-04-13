@@ -8,45 +8,61 @@ from apps.sigesi.models import User, Menu, Opcion, Permiso
 # Serializers para el perfil de permisos del usuario autenticado
 # ---------------------------------------------------------------
 
-class PermisoPerfilSerializer(serializers.ModelSerializer):
-    """Permiso asociado a una opción, visto desde el perfil del usuario."""
-    class Meta:
-        model = Permiso
-        fields = ['id', 'permitido']
-
-
 class OpcionPerfilSerializer(serializers.ModelSerializer):
-    """Opción con su permiso para el rol del usuario autenticado."""
-    permiso = serializers.SerializerMethodField()
+    """
+    Opción con los 4 permisos CRUD del rol aplanados directamente.
+    El front lee opcion.puede_consultar, opcion.puede_crear, etc.
+    """
+    puede_consultar  = serializers.SerializerMethodField()
+    puede_crear      = serializers.SerializerMethodField()
+    puede_actualizar = serializers.SerializerMethodField()
+    puede_eliminar   = serializers.SerializerMethodField()
 
     class Meta:
         model = Opcion
-        fields = ['id', 'nombre', 'codigo', 'descripcion', 'accion', 'permiso']
+        fields = ['id', 'nombre', 'url', 'puede_consultar', 'puede_crear', 'puede_actualizar', 'puede_eliminar']
 
-    def get_permiso(self, opcion):
+    def _permiso(self, opcion):
         rol = self.context.get('rol')
-        permiso = Permiso.objects.filter(opcion=opcion, rol=rol).first()
-        if permiso:
-            return PermisoPerfilSerializer(permiso).data
-        return None
+        # Cacheado en el contexto para no repetir queries por campo
+        cache = self.context.setdefault('_permiso_cache', {})
+        key = (opcion.pk, rol)
+        if key not in cache:
+            cache[key] = Permiso.objects.filter(opcion=opcion, rol=rol).first()
+        return cache[key]
+
+    def get_puede_consultar(self, opcion):
+        p = self._permiso(opcion)
+        return p.puede_consultar if p else False
+
+    def get_puede_crear(self, opcion):
+        p = self._permiso(opcion)
+        return p.puede_crear if p else False
+
+    def get_puede_actualizar(self, opcion):
+        p = self._permiso(opcion)
+        return p.puede_actualizar if p else False
+
+    def get_puede_eliminar(self, opcion):
+        p = self._permiso(opcion)
+        return p.puede_eliminar if p else False
 
 
 class MenuPerfilSerializer(serializers.ModelSerializer):
-    """Menú con sus opciones y permisos para el rol del usuario autenticado."""
+    """Menú con sus opciones y permisos CRUD por rol."""
     opciones = serializers.SerializerMethodField()
 
     class Meta:
         model = Menu
-        fields = ['id', 'nombre', 'icono', 'orden', 'url', 'menu_padre', 'opciones']
+        fields = ['id', 'nombre', 'icono', 'opciones']
 
     def get_opciones(self, menu):
         rol = self.context.get('rol')
         opciones = Opcion.objects.filter(
             menu=menu,
+            estado=True,
             permisos__rol=rol,
-            permisos__permitido=True,
-            is_active=True,
-        ).distinct()
+        ).distinct().order_by('nombre')
         return OpcionPerfilSerializer(opciones, many=True, context=self.context).data
 
 

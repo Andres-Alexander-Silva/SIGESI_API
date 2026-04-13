@@ -1,17 +1,24 @@
 from rest_framework import serializers
 from apps.sigesi.models import Menu, Opcion, Permiso
 
+
 class MenuSerializer(serializers.ModelSerializer):
     class Meta:
         model = Menu
-        fields = '__all__'
+        fields = ['id', 'nombre', 'icono', 'estado']
+
 
 class OpcionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Opcion
-        fields = '__all__'
+        fields = ['id', 'menu', 'nombre', 'url', 'estado']
+
 
 class PermisoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Permiso
-        fields = '__all__'
+        fields = [
+            'id', 'rol', 'opcion',
+            'puede_consultar', 'puede_crear',
+            'puede_actualizar', 'puede_eliminar',
+        ]

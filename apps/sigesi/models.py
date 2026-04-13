@@ -10,104 +10,59 @@ from django.conf import settings
 class Menu(models.Model):
     """Menú principal del sistema."""
 
-    nombre = models.CharField(max_length=100, verbose_name='Nombre')
-    icono = models.CharField(max_length=50, blank=True,
-                             verbose_name='Icono (clase CSS)')
-    orden = models.PositiveIntegerField(default=0, verbose_name='Orden')
-    url = models.CharField(max_length=200, blank=True, verbose_name='URL')
-    menu_padre = models.ForeignKey(
-        'self',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='submenus',
-        verbose_name='Menú padre'
-    )
-    is_active = models.BooleanField(default=True, verbose_name='Activo')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = 'Menú'
-        verbose_name_plural = 'Menús'
-        ordering = ['orden']
+    nombre = models.CharField(max_length=100, unique=True)
+    icono  = models.CharField(max_length=50, unique=True)
+    estado = models.BooleanField(default=True)
 
     def __str__(self):
         return self.nombre
 
+    class Meta:
+        db_table = 'menus'
+
 
 class Opcion(models.Model):
-    """Opción o acción disponible dentro de un menú."""
+    """Opción de navegación dentro de un menú."""
 
-    menu = models.ForeignKey(
-        Menu,
-        on_delete=models.CASCADE,
-        related_name='opciones',
-        verbose_name='Menú'
-    )
-    nombre = models.CharField(max_length=100, verbose_name='Nombre')
-    codigo = models.CharField(
-        max_length=50, unique=True, verbose_name='Código único')
-    descripcion = models.TextField(blank=True, verbose_name='Descripción')
-    accion = models.CharField(
-        max_length=20,
-        choices=[
-            ('ver', 'Ver'),
-            ('crear', 'Crear'),
-            ('editar', 'Editar'),
-            ('eliminar', 'Eliminar'),
-            ('aprobar', 'Aprobar'),
-            ('exportar', 'Exportar'),
-        ],
-        verbose_name='Acción'
-    )
-    is_active = models.BooleanField(default=True, verbose_name='Activo')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = 'Opción'
-        verbose_name_plural = 'Opciones'
-        ordering = ['menu', 'nombre']
+    menu   = models.ForeignKey(Menu, null=False, on_delete=models.RESTRICT, related_name='opciones')
+    nombre = models.CharField(max_length=100)
+    url    = models.CharField(max_length=100, unique=True)
+    estado = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.menu.nombre} → {self.nombre} ({self.get_accion_display()})"
+        return self.nombre
+
+    class Meta:
+        db_table = 'opciones'
 
 
 class Permiso(models.Model):
-    """Asignación de permisos por rol a opciones específicas."""
+    """Permisos CRUD de un rol sobre una opción."""
 
     rol = models.CharField(
         max_length=30,
         choices=[
-            ('administrador', 'Administrador'),
-            ('director_grupo', 'Director de Grupo'),
-            ('director_semillero', 'Director de Semillero'),
-            ('lider_estudiantil', 'Líder Estudiantil'),
-            ('estudiante', 'Estudiante'),
-            ('comite', 'Comité de Investigación'),
+            ('administrador',       'Administrador'),
+            ('director_grupo',      'Director de Grupo'),
+            ('director_semillero',  'Director de Semillero'),
+            ('lider_estudiantil',   'Líder Estudiantil'),
+            ('estudiante',          'Estudiante'),
+            ('comite',              'Comité de Investigación'),
         ],
-        verbose_name='Rol'
     )
-    opcion = models.ForeignKey(
-        Opcion,
-        on_delete=models.CASCADE,
-        related_name='permisos',
-        verbose_name='Opción'
-    )
-    permitido = models.BooleanField(default=True, verbose_name='Permitido')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = 'Permiso'
-        verbose_name_plural = 'Permisos'
-        unique_together = ['rol', 'opcion']
-        ordering = ['rol', 'opcion']
+    opcion           = models.ForeignKey(Opcion, null=False, on_delete=models.RESTRICT, related_name='permisos')
+    puede_consultar  = models.BooleanField(default=False)
+    puede_crear      = models.BooleanField(default=False)
+    puede_actualizar = models.BooleanField(default=False)
+    puede_eliminar   = models.BooleanField(default=False)
 
     def __str__(self):
-        estado = '✓' if self.permitido else '✗'
-        return f"{self.get_rol_display()} | {self.opcion} [{estado}]"
+        return f"{self.get_rol_display()} -> {self.opcion}"
+
+    class Meta:
+        db_table       = 'permisos'
+        unique_together = ['rol', 'opcion']
+        ordering        = ['rol', 'opcion']
 
 
 # ============================================================
@@ -155,26 +110,20 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.get_full_name()} - {self.get_rol_display()}"
 
-    def tiene_permiso(self, codigo_opcion):
-        """Verifica si el usuario tiene permiso sobre una opción por su código."""
+    def puede_consultar(self, url_opcion):
+        """Verifica si el usuario puede consultar la opción con la URL dada."""
         return Permiso.objects.filter(
-            rol=self.rol,
-            opcion__codigo=codigo_opcion,
-            permitido=True,
-            opcion__is_active=True
+            rol=self.rol, opcion__url=url_opcion,
+            puede_consultar=True, opcion__estado=True,
         ).exists()
 
     def obtener_menus(self):
         """Retorna los menús accesibles según el rol del usuario."""
-        opciones_permitidas = Opcion.objects.filter(
-            permisos__rol=self.rol,
-            permisos__permitido=True,
-            is_active=True
-        ).values_list('menu_id', flat=True)
         return Menu.objects.filter(
-            id__in=opciones_permitidas,
-            is_active=True
-        ).distinct().order_by('orden')
+            estado=True,
+            opciones__estado=True,
+            opciones__permisos__rol=self.rol,
+        ).distinct()
 
 
 # ============================================================
