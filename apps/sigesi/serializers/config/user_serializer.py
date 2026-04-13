@@ -59,16 +59,17 @@ class MenuPerfilSerializer(serializers.ModelSerializer):
 
     def get_opciones(self, menu):
         rol = self.context.get('rol')
-        opciones = Opcion.objects.filter(
-            menu=menu,
-            estado=True,
-            permisos__rol=rol,
+        opcion_ids = Permiso.objects.filter(
+            opcion__menu=menu,
+            opcion__estado=True,
+            rol=rol,
         ).filter(
-            Q(permisos__puede_consultar=True) |
-            Q(permisos__puede_crear=True) |
-            Q(permisos__puede_actualizar=True) |
-            Q(permisos__puede_eliminar=True)
-        ).distinct().order_by('nombre')
+            Q(puede_consultar=True) |
+            Q(puede_crear=True) |
+            Q(puede_actualizar=True) |
+            Q(puede_eliminar=True)
+        ).values_list('opcion_id', flat=True)
+        opciones = Opcion.objects.filter(id__in=opcion_ids).order_by('nombre')
         return OpcionPerfilSerializer(opciones, many=True, context=self.context).data
 
 
