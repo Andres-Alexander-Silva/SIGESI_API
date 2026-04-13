@@ -4,13 +4,13 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from apps.sigesi.models import User, Menu
+from apps.sigesi.models import User, Menu, Permiso
 from apps.sigesi.serializers.config.user_serializer import (
     UserSerializer,
     UserCreateSerializer,
     UserUpdateSerializer,
     UserChangePasswordSerializer,
-    MenuPerfilSerializer,
+    MenuSidebarSerializer,
 )
 
 
@@ -177,36 +177,42 @@ class UserViewSet(viewsets.ModelViewSet):
         method='get',
         operation_summary="Mis menús, opciones y permisos",
         operation_description=(
-            "Retorna todos los menús accesibles para el usuario autenticado, "
-            "junto con sus opciones y el permiso asociado según su rol. "
-            "Solo se incluyen menús y opciones activos con `permitido=true`."
+            "Retorna la estructura completa para construir el sidebar y verificar permisos en el frontend.\n\n"
+            "**`menus`** — árbol de navegación (menús raíz con sus submenús anidados). "
+            "Solo incluye menús donde el rol tiene al menos una opción permitida.\n\n"
+            "**`permisos`** — objeto plano `{ codigo: true }` con todas las acciones "
+            "permitidas para el rol. Úsalo para mostrar/ocultar botones dentro de cada página."
         ),
         responses={
             200: openapi.Response(
-                description="Estructura de menús con opciones y permisos del usuario",
+                description="Sidebar + mapa de permisos del usuario autenticado",
                 examples={
                     "application/json": {
-                        "rol": "estudiante",
+                        "rol": "director_semillero",
                         "menus": [
                             {
                                 "id": 1,
+                                "nombre": "Dashboard",
+                                "icono": "fa-gauge",
+                                "orden": 1,
+                                "url": "/dashboard",
+                                "submenus": [],
+                            },
+                            {
+                                "id": 2,
                                 "nombre": "Semilleros",
                                 "icono": "fa-flask",
-                                "orden": 1,
+                                "orden": 2,
                                 "url": "/semilleros",
-                                "menu_padre": None,
-                                "opciones": [
-                                    {
-                                        "id": 3,
-                                        "nombre": "Ver semilleros",
-                                        "codigo": "semilleros.ver",
-                                        "descripcion": "",
-                                        "accion": "ver",
-                                        "permiso": {"id": 5, "permitido": True},
-                                    }
-                                ],
-                            }
+                                "submenus": [],
+                            },
                         ],
+                        "permisos": {
+                            "dashboard.ver": True,
+                            "semilleros.ver": True,
+                            "semilleros.editar": True,
+                            "semilleros.exportar": True,
+                        },
                     }
                 },
             ),
@@ -218,14 +224,31 @@ class UserViewSet(viewsets.ModelViewSet):
             permission_classes=[IsAuthenticated])
     def mis_permisos(self, request):
         user = request.user
-        menus = Menu.objects.filter(
-            opciones__permisos__rol=user.rol,
+        rol = user.rol
+
+        # Menús raíz accesibles para el rol (sin menu_padre)
+        menus_raiz = Menu.objects.filter(
+            menu_padre=None,
+            is_active=True,
+            opciones__permisos__rol=rol,
             opciones__permisos__permitido=True,
             opciones__is_active=True,
-            is_active=True,
         ).distinct().order_by('orden')
 
-        serializer = MenuPerfilSerializer(
-            menus, many=True, context={'rol': user.rol}
+        # Permisos planos { codigo: True } para verificación rápida en el front
+        permisos_qs = Permiso.objects.filter(
+            rol=rol,
+            permitido=True,
+            opcion__is_active=True,
+        ).select_related('opcion').values_list('opcion__codigo', flat=True)
+
+        permisos_dict = {codigo: True for codigo in permisos_qs}
+
+        serializer = MenuSidebarSerializer(
+            menus_raiz, many=True, context={'rol': rol}
         )
-        return Response({'rol': user.rol, 'menus': serializer.data})
+        return Response({
+            'rol': rol,
+            'menus': serializer.data,
+            'permisos': permisos_dict,
+        })

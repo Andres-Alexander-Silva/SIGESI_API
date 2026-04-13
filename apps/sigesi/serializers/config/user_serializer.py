@@ -8,46 +8,28 @@ from apps.sigesi.models import User, Menu, Opcion, Permiso
 # Serializers para el perfil de permisos del usuario autenticado
 # ---------------------------------------------------------------
 
-class PermisoPerfilSerializer(serializers.ModelSerializer):
-    """Permiso asociado a una opción, visto desde el perfil del usuario."""
-    class Meta:
-        model = Permiso
-        fields = ['id', 'permitido']
-
-
-class OpcionPerfilSerializer(serializers.ModelSerializer):
-    """Opción con su permiso para el rol del usuario autenticado."""
-    permiso = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Opcion
-        fields = ['id', 'nombre', 'codigo', 'descripcion', 'accion', 'permiso']
-
-    def get_permiso(self, opcion):
-        rol = self.context.get('rol')
-        permiso = Permiso.objects.filter(opcion=opcion, rol=rol).first()
-        if permiso:
-            return PermisoPerfilSerializer(permiso).data
-        return None
-
-
-class MenuPerfilSerializer(serializers.ModelSerializer):
-    """Menú con sus opciones y permisos para el rol del usuario autenticado."""
-    opciones = serializers.SerializerMethodField()
+class MenuSidebarSerializer(serializers.ModelSerializer):
+    """
+    Menú listo para construir el sidebar.
+    Incluye submenús anidados (un nivel). No expone opciones/acciones —
+    esas van en el dict plano 'permisos' de la respuesta.
+    """
+    submenus = serializers.SerializerMethodField()
 
     class Meta:
         model = Menu
-        fields = ['id', 'nombre', 'icono', 'orden', 'url', 'menu_padre', 'opciones']
+        fields = ['id', 'nombre', 'icono', 'orden', 'url', 'submenus']
 
-    def get_opciones(self, menu):
+    def get_submenus(self, menu):
         rol = self.context.get('rol')
-        opciones = Opcion.objects.filter(
-            menu=menu,
-            permisos__rol=rol,
-            permisos__permitido=True,
+        hijos = Menu.objects.filter(
+            menu_padre=menu,
             is_active=True,
-        ).distinct()
-        return OpcionPerfilSerializer(opciones, many=True, context=self.context).data
+            opciones__permisos__rol=rol,
+            opciones__permisos__permitido=True,
+            opciones__is_active=True,
+        ).distinct().order_by('orden')
+        return MenuSidebarSerializer(hijos, many=True, context=self.context).data
 
 
 class UserSerializer(serializers.ModelSerializer):
