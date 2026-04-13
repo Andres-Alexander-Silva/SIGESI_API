@@ -242,4 +242,5 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = MenuPerfilSerializer(
             menus, many=True, context={'rol': user.rol}
         )
-        return Response({'rol': user.rol, 'menus': serializer.data})
+        menus_data = [m for m in serializer.data if m['opciones']]
+        return Response({'rol': user.rol, 'menus': menus_data})

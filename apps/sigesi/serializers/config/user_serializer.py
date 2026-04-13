@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.core.validators import RegexValidator
+from django.db.models import Q
 from apps.sigesi.models import User, Menu, Opcion, Permiso
 
 
@@ -62,6 +63,11 @@ class MenuPerfilSerializer(serializers.ModelSerializer):
             menu=menu,
             estado=True,
             permisos__rol=rol,
+        ).filter(
+            Q(permisos__puede_consultar=True) |
+            Q(permisos__puede_crear=True) |
+            Q(permisos__puede_actualizar=True) |
+            Q(permisos__puede_eliminar=True)
         ).distinct().order_by('nombre')
         return OpcionPerfilSerializer(opciones, many=True, context=self.context).data
 
