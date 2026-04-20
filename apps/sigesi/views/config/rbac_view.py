@@ -5,6 +5,10 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from apps.sigesi.models import Menu, Opcion, Permiso
 from apps.sigesi.serializers.config.rbac_serializer import MenuSerializer, OpcionSerializer, PermisoSerializer
+from apps.sigesi.utils.notifications import notificar_cambio_permiso, notificar_cambios_permisos_multiples
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
 class MenuViewSet(viewsets.ModelViewSet):
@@ -313,3 +317,28 @@ class PermisoViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def perform_create(self, serializer):
+        """Crear permiso y notificar a los usuarios afectados."""
+        permiso = serializer.save()
+        # Notificar a todos los usuarios con este rol
+        notificar_cambios_permisos_multiples(permiso.rol)
+
+    def perform_update(self, serializer):
+        """Actualizar permiso completamente y notificar a los usuarios afectados."""
+        permiso = serializer.save()
+        # Notificar a todos los usuarios con este rol
+        notificar_cambios_permisos_multiples(permiso.rol)
+
+    def perform_partial_update(self, serializer):
+        """Actualizar permiso parcialmente y notificar a los usuarios afectados."""
+        permiso = serializer.save()
+        # Notificar a todos los usuarios con este rol
+        notificar_cambios_permisos_multiples(permiso.rol)
+
+    def perform_destroy(self, instance):
+        """Eliminar permiso y notificar a los usuarios afectados."""
+        rol_afectado = instance.rol
+        instance.delete()
+        # Notificar a todos los usuarios con este rol
+        notificar_cambios_permisos_multiples(rol_afectado)

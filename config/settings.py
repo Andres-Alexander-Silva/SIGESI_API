@@ -31,12 +31,14 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
+    'daphne',  # Debe estar primero para que Django use ASGI
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
     'drf_yasg',
+    'channels',
 ]
 
 LOCAL_APPS = [
@@ -61,6 +63,10 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'config.urls'
+
+ASGI_APPLICATION = 'config.asgi.application'
+
+WSGI_APPLICATION = 'config.wsgi.application'
 
 TEMPLATES = [
     {
@@ -185,6 +191,38 @@ CORS_ALLOWED_ORIGINS = config(
     default='http://localhost:3000,http://localhost:5173',
     cast=Csv()
 )
+
+# ============================================
+# CHANNELS Y WEBSOCKETS
+# ============================================
+if RENDER:
+    # En Render, usar la URL de Redis directamente
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [config('REDIS_URL', default='redis://127.0.0.1:6379')],
+                'ssl_certfile': None,
+                'ssl_keyfile': None,
+                'ssl_cert_reqs': None,
+            },
+        },
+    }
+else:
+    # En desarrollo local
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [
+                    (
+                        config('REDIS_HOST', default='127.0.0.1'),
+                        int(config('REDIS_PORT', default='6379'))
+                    )
+                ],
+            },
+        },
+    }
 
 # ============================================
 # MODELO DE USUARIO PERSONALIZADO
