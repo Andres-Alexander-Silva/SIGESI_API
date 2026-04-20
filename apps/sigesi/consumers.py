@@ -1,9 +1,9 @@
 import json
 import logging
+from urllib.parse import parse_qs
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
-from apps.sigesi.models import Menu
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -13,8 +13,9 @@ class PermisosConsumer(AsyncWebsocketConsumer):
     """
     WebSocket consumer para notificaciones en tiempo real de cambios de permisos.
     
-    Clientes se conectan a: ws://hostname/ws/permisos/<user_id>/
+    Clientes se conectan a: ws://hostname/ws/permisos/<user_id>/?token=<jwt_token>
     
+    El token JWT se pasa en la query string.
     Cuando se actualiza un permiso, se envía un mensaje a todos los usuarios afectados.
     """
 
@@ -22,10 +23,18 @@ class PermisosConsumer(AsyncWebsocketConsumer):
         """Maneja la conexión WebSocket."""
         try:
             self.user_id = self.scope['url_route']['kwargs']['user_id']
-            self.user = await self._get_user(self.user_id)
             
-            if not self.user or not self.user.is_authenticated:
-                await self.close()
+            # Extraer token de la query string
+            query_string = self.scope.get('query_string', b'').decode('utf-8')
+            query_params = parse_qs(query_string)
+            token = query_params.get('token', [None])[0]
+            
+            # Validar token JWT y obtener usuario
+            self.user = await self._validate_token_and_get_user(token, self.user_id)
+            
+            if not self.user:
+                logger.warning(f"Token inválido o usuario no existe: user_id={self.user_id}")
+                await self.close(code=4001, reason="Token inválido o usuario no autenticado")
                 return
             
             # Crear nombre único de grupo por usuario
@@ -38,10 +47,10 @@ class PermisosConsumer(AsyncWebsocketConsumer):
             )
             
             await self.accept()
-            logger.info(f"Usuario {self.user_id} conectado a WebSocket de permisos")
+            logger.info(f"✅ Usuario {self.user_id} ({self.user.username}) conectado a WebSocket de permisos")
             
         except Exception as e:
-            logger.error(f"Error en conexión WebSocket: {str(e)}")
+            logger.error(f"❌ Error en conexión WebSocket: {str(e)}")
             await self.close()
 
     async def disconnect(self, close_code):
@@ -93,9 +102,59 @@ class PermisosConsumer(AsyncWebsocketConsumer):
                 'data': event.get('data', {}),
                 'timestamp': event.get('timestamp'),
             }))
-            logger.info(f"Notificación de permisos enviada a {self.user_id}")
+            logger.info(f"📤 Notificación de permisos enviada a {self.user_id}")
         except Exception as e:
             logger.error(f"Error enviando notificación: {str(e)}")
+
+    @database_sync_to_async
+    def _validate_token_and_get_user(self, token, user_id):
+        """
+        Valida el token JWT y retorna el usuario si es válido.
+        
+        Args:
+            token: Token JWT
+            user_id: ID del usuario que debe coincidir con el token
+            
+        Returns:
+            User: Instancia del usuario si el token es válido, None en caso contrario
+        """
+        try:
+            if not token:
+                logger.warning("No token provided for WebSocket connection")
+                return None
+            
+            # Validar token JWT
+            from rest_framework_simplejwt.tokens import AccessToken
+            from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+            
+            try:
+                access_token = AccessToken(token)
+                user_id_from_token = access_token['user_id']
+                
+                # Verificar que el user_id de la URL coincide con el del token
+                if str(user_id_from_token) != str(user_id):
+                    logger.warning(f"User ID mismatch: {user_id_from_token} != {user_id}")
+                    return None
+                
+                # Obtener el usuario
+                user = User.objects.get(id=user_id_from_token)
+                if not user.is_active:
+                    logger.warning(f"Usuario inactivo: {user_id_from_token}")
+                    return None
+                    
+                logger.info(f"✓ Token válido para usuario {user.username}")
+                return user
+                
+            except (InvalidToken, TokenError) as e:
+                logger.warning(f"Token inválido: {str(e)}")
+                return None
+                
+        except User.DoesNotExist:
+            logger.warning(f"Usuario no existe: {user_id}")
+            return None
+        except Exception as e:
+            logger.error(f"Error validando token: {str(e)}")
+            return None
 
     @database_sync_to_async
     def _get_user(self, user_id):
@@ -110,6 +169,8 @@ class PermisosConsumer(AsyncWebsocketConsumer):
         """Obtener permisos actualizados del usuario."""
         try:
             user = User.objects.get(id=user_id)
+            from apps.sigesi.models import Menu
+            
             menus = Menu.objects.filter(
                 estado=True,
                 opciones__estado=True,
