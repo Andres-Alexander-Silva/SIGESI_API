@@ -205,9 +205,6 @@ if RENDER:
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
                 'hosts': [config('REDIS_URL', default='redis://127.0.0.1:6379')],
-                'ssl_certfile': None,
-                'ssl_keyfile': None,
-                'ssl_cert_reqs': None,
             },
         },
     }
