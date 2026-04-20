@@ -31,7 +31,7 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
-    'daphne',  # Debe estar primero para que Django use ASGI
+    'daphne',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
