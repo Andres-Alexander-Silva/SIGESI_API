@@ -1,5 +1,3 @@
-import asyncio
-import json
 import logging
 from channels.layers import get_channel_layer
 from django.utils import timezone
@@ -50,6 +48,43 @@ def notificar_actualizacion_permisos(user_id, rol=None, menus_data=None, mensaje
         return False
 
 
+def obtener_permisos_usuario(user):
+    """
+    Obtiene los permisos actualizados del usuario en el mismo formato que el endpoint mis_permisos.
+    
+    Args:
+        user: Instancia del modelo User
+        
+    Returns:
+        dict: Diccionario con rol y menus serializados
+    """
+    try:
+        from apps.sigesi.models import Menu
+        from apps.sigesi.serializers.config.user_serializer import MenuPerfilSerializer
+        
+        menus = Menu.objects.filter(
+            estado=True,
+            opciones__estado=True,
+            opciones__permisos__rol=user.rol,
+        ).distinct()
+
+        serializer = MenuPerfilSerializer(
+            menus, many=True, context={'rol': user.rol}
+        )
+        menus_data = [m for m in serializer.data if m['opciones']]
+        
+        return {
+            'rol': user.rol,
+            'menus': menus_data,
+        }
+    except Exception as e:
+        logger.error(f"Error obteniendo permisos del usuario {user.id}: {str(e)}")
+        return {
+            'rol': user.rol,
+            'menus': [],
+        }
+
+
 def notificar_cambio_permiso(permiso_obj):
     """
     Notifica al usuario cuyo rol fue modificado cuando se actualiza un permiso.
@@ -62,49 +97,17 @@ def notificar_cambio_permiso(permiso_obj):
         from django.contrib.auth import get_user_model
         User = get_user_model()
         
-        usuarios_rol = User.objects.filter(rol=permiso_obj.rol)
+        usuarios_rol = User.objects.filter(rol=permiso_obj.rol, is_active=True)
         
         for usuario in usuarios_rol:
             # Obtener los permisos actualizados del usuario
-            from apps.sigesi.models import Menu
-            
-            menus = Menu.objects.filter(
-                estado=True,
-                opciones__estado=True,
-                opciones__permisos__rol=usuario.rol,
-            ).distinct()
-            
-            # Serializar los datos
-            menus_data = []
-            for menu in menus:
-                menu_data = {
-                    'id': menu.id,
-                    'nombre': menu.nombre,
-                    'icono': menu.icono,
-                    'opciones': []
-                }
-                
-                for opcion in menu.opciones.filter(estado=True):
-                    perm = opcion.permisos.filter(rol=usuario.rol).first()
-                    if perm:
-                        menu_data['opciones'].append({
-                            'id': opcion.id,
-                            'nombre': opcion.nombre,
-                            'url': opcion.url,
-                            'puede_consultar': perm.puede_consultar,
-                            'puede_crear': perm.puede_crear,
-                            'puede_actualizar': perm.puede_actualizar,
-                            'puede_eliminar': perm.puede_eliminar,
-                        })
-                
-                if menu_data['opciones']:
-                    menus_data.append(menu_data)
+            permisos_data = obtener_permisos_usuario(usuario)
             
             # Enviar notificación
             notificar_actualizacion_permisos(
                 user_id=usuario.id,
                 rol=usuario.rol,
-                menus_data=menus_data,
+                menus_data=permisos_data['menus'],
                 mensaje=f"Tu acceso a '{permiso_obj.opcion.nombre}' ha sido actualizado"
             )
             
@@ -115,6 +118,7 @@ def notificar_cambio_permiso(permiso_obj):
 def notificar_cambios_permisos_multiples(rol):
     """
     Notifica a todos los usuarios con un rol específico sobre cambios en sus permisos.
+    Obtiene y envía los permisos actualizados en el mismo formato que mis_permisos.
     
     Args:
         rol: El rol cuya configuración de permisos cambió
@@ -126,9 +130,14 @@ def notificar_cambios_permisos_multiples(rol):
         usuarios_rol = User.objects.filter(rol=rol, is_active=True)
         
         for usuario in usuarios_rol:
+            # Obtener los permisos actualizados del usuario
+            permisos_data = obtener_permisos_usuario(usuario)
+            
+            # Enviar notificación con los permisos actualizados
             notificar_actualizacion_permisos(
                 user_id=usuario.id,
                 rol=usuario.rol,
+                menus_data=permisos_data['menus'],
                 mensaje="La configuración de permisos de tu rol ha sido actualizada"
             )
             
