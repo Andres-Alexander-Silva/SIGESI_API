@@ -47,7 +47,6 @@ class Permiso(models.Model):
             ('director_semillero',  'Director de Semillero'),
             ('lider_estudiantil',   'Líder Estudiantil'),
             ('estudiante',          'Estudiante'),
-            ('comite',              'Comité de Investigación'),
         ],
     )
     opcion           = models.ForeignKey(Opcion, null=False, on_delete=models.RESTRICT, related_name='permisos')
@@ -78,7 +77,6 @@ class User(AbstractUser):
         DIRECTOR_SEMILLERO = 'director_semillero', 'Director de Semillero'
         LIDER_ESTUDIANTIL = 'lider_estudiantil', 'Líder Estudiantil'
         ESTUDIANTE = 'estudiante', 'Estudiante'
-        COMITE = 'comite', 'Comité de Investigación'
 
     cedula = models.CharField(
         max_length=20, unique=True, verbose_name='Cédula')

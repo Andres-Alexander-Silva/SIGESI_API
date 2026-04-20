@@ -242,7 +242,7 @@ class PermisoViewSet(viewsets.ModelViewSet):
         operation_description=(
             "Asigna una opción a un rol. El campo `rol` acepta: "
             "`administrador`, `director_grupo`, `director_semillero`, "
-            "`lider_estudiantil`, `estudiante`, `comite`."
+            "`lider_estudiantil`, `estudiante`."
         ),
         request_body=PermisoSerializer,
         responses={
