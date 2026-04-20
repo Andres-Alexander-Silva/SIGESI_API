@@ -21,6 +21,11 @@ RENDER = config('RENDER', default=False, cast=bool)
 # ============================================
 # APLICACIONES
 # ============================================
+ASGI_APPS = [
+    'daphne',
+    'channels',
+]
+
 DJANGO_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -31,21 +36,19 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
-    'daphne',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
     'drf_yasg',
-    'channels',
 ]
 
 LOCAL_APPS = [
     'apps.sigesi'
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+INSTALLED_APPS = ASGI_APPS + DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 # ============================================
 # MIDDLEWARE
