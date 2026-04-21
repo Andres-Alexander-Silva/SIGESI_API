@@ -110,6 +110,14 @@ class UserCreateSerializer(serializers.ModelSerializer):
         style={'input_type': 'password'},
         help_text='Mínimo 8 caracteres.',
     )
+    codigo_estudiantil = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        error_messages={
+            'required': 'El código estudiantil es obligatorio.',
+            'blank': 'Este campo no puede quedar en blanco.'
+        }
+    )
 
     class Meta:
         model = User
