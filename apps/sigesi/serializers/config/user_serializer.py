@@ -79,8 +79,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'first_name', 'last_name',
-            'cedula', 'telefono', 'foto', 'rol',
+            'id', 'username', 'email', 'correo_personal', 'is_graduated', 
+            'first_name', 'last_name', 'cedula', 'telefono', 'foto', 'rol',
             'codigo_estudiantil', 'programa_academico',
             'is_active', 'created_at', 'updated_at',
         ]
@@ -91,6 +91,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
     """Serializer para crear un usuario. Encripta la contraseña automáticamente."""
 
     email = serializers.EmailField(
+        required=False,
+        allow_null=True,
         validators=[
             RegexValidator(
                 regex=r'^[\w\.-]+@ufps\.edu\.co$',
@@ -112,8 +114,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'password',
-            'first_name', 'last_name', 'cedula',
+            'id', 'username', 'email', 'correo_personal', 'is_graduated',
+            'password', 'first_name', 'last_name', 'cedula',
             'telefono', 'rol', 'codigo_estudiantil', 'programa_academico',
         ]
         read_only_fields = ['id']
@@ -130,6 +132,8 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     """Serializer para actualizar datos del usuario (sin cambiar contraseña)."""
 
     email = serializers.EmailField(
+        required=False,
+        allow_null=True,
         validators=[
             RegexValidator(
                 regex=r'^[\w\.-]+@ufps\.edu\.co$',
@@ -141,8 +145,8 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'username', 'email', 'first_name', 'last_name',
-            'cedula', 'telefono', 'foto', 'rol',
+            'username', 'email', 'correo_personal', 'is_graduated',
+            'first_name', 'last_name', 'cedula', 'telefono', 'foto', 'rol',
             'codigo_estudiantil', 'programa_academico', 'is_active',
         ]
 

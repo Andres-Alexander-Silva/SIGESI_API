@@ -96,6 +96,12 @@ class User(AbstractUser):
         related_name='usuarios',
         verbose_name='Programa académico'
     )
+    correo_personal = models.EmailField(
+        unique=True, verbose_name='Correo Personal')
+    is_graduated = models.BooleanField(
+        default=False, verbose_name='Es egresado')
+    email = models.EmailField(
+        unique=True, blank=True, null=True, verbose_name='Email institucional')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -107,6 +113,11 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.get_full_name()} - {self.get_rol_display()}"
+
+    def save(self, *args, **kwargs):
+        if self.is_graduated:
+            self.email = None
+        super().save(*args, **kwargs)
 
     def puede_consultar(self, url_opcion):
         """Verifica si el usuario puede consultar la opción con la URL dada."""
