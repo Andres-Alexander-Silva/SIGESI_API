@@ -64,3 +64,74 @@ class SemilleroRolePermission(BasePermission):
             return obj.grupo_investigacion.director == user
             
         return False
+
+
+class ProyectoRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Proyectos.
+    - Administrador: Acceso total.
+    - Director de Grupo / Director de Semillero: Acceso total a los proyectos asociados a su grupo/semillero.
+    - Estudiante / Líder Estudiantil: Solo pueden crear en estado 'idea'. Pueden consultar y editar si están vinculados, pero no pueden cambiar de estado ni de líder libremente.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+            
+        user = request.user
+        
+        # Administrador tiene acceso total
+        if user.rol == User.RolChoices.ADMINISTRADOR:
+            return True
+            
+        # Para GET, todos pueden consultar la lista (la vista filtrará el queryset)
+        if request.method in SAFE_METHODS:
+            return True
+            
+        # Creación
+        if request.method == 'POST':
+            return True
+            
+        # Edición y Eliminación: permitidas a nivel general, se controlará por objeto
+        if request.method in ['PUT', 'PATCH', 'DELETE']:
+            return True
+            
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        
+        # Administrador tiene acceso total
+        if user.rol == User.RolChoices.ADMINISTRADOR:
+            return True
+            
+        # Lectura
+        if request.method in SAFE_METHODS:
+            # Pueden ver el proyecto si están en el semillero, grupo o son parte del proyecto.
+            # Asumiremos que pueden ver cualquier proyecto, o bien limitarlo. Dejaremos que puedan ver (True) para simplificar la lectura, la vista lista filtrará si es necesario.
+            return True
+            
+        # Directores pueden gestionar proyectos de su semillero/grupo
+        if user.rol in [User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DIRECTOR_GRUPO]:
+            # Verificar si el proyecto pertenece a un semillero/grupo del director
+            if obj.semilleros.filter(director=user).exists():
+                return True
+            if obj.semilleros.filter(grupo_investigacion__director=user).exists():
+                return True
+            if obj.director == user:
+                return True
+            return False
+            
+        # Estudiantes/Líderes solo pueden editar si son el líder o están vinculados
+        if user.rol in [User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]:
+            if request.method == 'DELETE':
+                return False  # No pueden eliminar
+                
+            # Solo el líder puede editar el proyecto, o estudiantes vinculados (decidiremos que solo el líder)
+            if obj.lider == user:
+                # La restricción de cambiar estado se manejará en el serializer o vista (change_state)
+                return True
+            return False
+            
+        return False
+
