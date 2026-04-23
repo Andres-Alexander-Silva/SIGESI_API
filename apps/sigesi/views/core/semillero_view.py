@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from apps.sigesi.models import Semillero
-from apps.sigesi.serializers.config.semillero_serializer import (
+from apps.sigesi.serializers.core.semillero_serializer import (
     SemilleroListSerializer,
     SemilleroCreateUpdateSerializer
 )

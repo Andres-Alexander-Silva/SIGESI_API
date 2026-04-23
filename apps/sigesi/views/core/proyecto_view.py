@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from apps.sigesi.models import Proyecto, User
-from apps.sigesi.serializers.proyectos.proyecto_serializer import (
+from apps.sigesi.serializers.core.proyecto_serializer import (
     ProyectoListSerializer,
     ProyectoCreateUpdateSerializer,
     ProyectoChangeStateSerializer

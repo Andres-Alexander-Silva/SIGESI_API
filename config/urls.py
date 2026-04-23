@@ -27,9 +27,9 @@ urlpatterns = [
     # Config & RBAC
     path('api/v1/config/', include('apps.sigesi.routers.config.rbac_urls')),
     path('api/v1/config/', include('apps.sigesi.routers.config.users_urls')),
-    path('api/v1/config/', include('apps.sigesi.routers.config.semilleros_urls')),
+    path('api/v1/core/', include('apps.sigesi.routers.core.semilleros_urls')),
     # Proyectos
-    path('api/v1/proyectos/', include('apps.sigesi.routers.proyectos.proyectos_urls')),
+    path('api/v1/core/', include('apps.sigesi.routers.core.proyectos_urls')),
     # Swagger / Documentación
     path('swagger/', schema_view.with_ui('swagger',
          cache_timeout=0), name='schema-swagger-ui'),
