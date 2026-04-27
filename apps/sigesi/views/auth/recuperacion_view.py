@@ -6,7 +6,10 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework_simplejwt.tokens import AccessToken
 from datetime import timedelta
 
-from apps.sigesi.serializers.auth.recuperacion_serializer import RecuperacionRequestSerializer
+from apps.sigesi.serializers.auth.recuperacion_serializer import (
+    RecuperacionRequestSerializer,
+    SetPasswordSerializer
+)
 
 User = get_user_model()
 
@@ -47,4 +50,40 @@ class RecuperacionView(APIView):
                     status=status.HTTP_200_OK
                 )
 
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class SetPasswordView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    @swagger_auto_schema(
+        operation_summary='Restablecer Contraseña',
+        request_body=SetPasswordSerializer,
+        responses={
+            200: "Contraseña actualizada exitosamente",
+            400: "Token inválido o errores en los datos"
+        },
+        tags=['Auth']
+    )
+    def post(self, request):
+        serializer = SetPasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            user_id = serializer.validated_data.get('user_id')
+            new_password = serializer.validated_data.get('new_password')
+            
+            user = User.objects.filter(id=user_id).first()
+            if not user or not user.is_active:
+                return Response(
+                    {"error": "Usuario no encontrado o inactivo."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+            user.set_password(new_password)
+            user.save()
+            
+            return Response(
+                {"message": "Contraseña actualizada correctamente."},
+                status=status.HTTP_200_OK
+            )
+            
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
