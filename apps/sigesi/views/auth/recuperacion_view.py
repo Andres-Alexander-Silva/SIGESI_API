@@ -10,6 +10,7 @@ from apps.sigesi.serializers.auth.recuperacion_serializer import (
     RecuperacionRequestSerializer,
     SetPasswordSerializer
 )
+from apps.sigesi.utils.email_service import enviar_correo_recuperacion
 
 User = get_user_model()
 
@@ -21,8 +22,8 @@ class RecuperacionView(APIView):
         operation_summary='Solicitar Recuperación de Contraseña',
         request_body=RecuperacionRequestSerializer,
         responses={
-            200: "Token de recuperación generado exitosamente",
-            400: "Errores de validación o usuario no encontrado"
+            200: "Solicitud procesada correctamente",
+            400: "Errores de validación"
         },
         tags=['Auth']
     )
@@ -40,15 +41,18 @@ class RecuperacionView(APIView):
                 # Se añade un claim personalizado para identificar que es un token de recuperación
                 token['token_type'] = 'password_recovery'
                 
-                # TODO: Implementar el envío de correo electrónico con el token o enlace
-                
-                return Response(
-                    {
-                        "message": "Solicitud procesada correctamente.",
-                        "token": str(token)  # Temporal: se devuelve el token para verificación
-                    },
-                    status=status.HTTP_200_OK
+                # Enviar correo de recuperación con Resend
+                enviar_correo_recuperacion(
+                    destinatario_email=user.email,
+                    destinatario_nombre=user.get_full_name(),
+                    token=str(token)
                 )
+
+            # Respuesta genérica — no revela si el email existe o no (previene enumeración)
+            return Response(
+                {"message": "Si el correo existe en nuestro sistema, recibirás un enlace de recuperación."},
+                status=status.HTTP_200_OK
+            )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

@@ -275,3 +275,14 @@ LOGGING = {
         },
     },
 }
+
+# ============================================
+# RESEND (Servicio de Email)
+# ============================================
+RESEND_API_KEY = config('RESEND_API_KEY', default='')
+RESEND_FROM_EMAIL = config('RESEND_FROM_EMAIL', default='SIGESI <onboarding@resend.dev>')
+
+# ============================================
+# FRONTEND
+# ============================================
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
