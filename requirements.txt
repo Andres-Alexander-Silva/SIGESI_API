@@ -39,6 +39,7 @@ sqlparse==0.5.5
 Twisted==25.5.0
 txaio==25.12.2
 typing_extensions==4.15.0
+tzdata==2026.1
 ujson==5.12.0
 uritemplate==4.2.0
 whitenoise==6.12.0
