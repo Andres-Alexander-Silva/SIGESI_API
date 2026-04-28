@@ -233,14 +233,15 @@ class UserViewSet(viewsets.ModelViewSet):
             permission_classes=[IsAuthenticated])
     def mis_permisos(self, request):
         user = request.user
+        # Combinar menús accesibles por cualquiera de los roles del usuario
         menus = Menu.objects.filter(
             estado=True,
             opciones__estado=True,
-            opciones__permisos__rol=user.rol,
+            opciones__permisos__rol__in=user.roles,
         ).distinct()
 
         serializer = MenuPerfilSerializer(
-            menus, many=True, context={'rol': user.rol}
+            menus, many=True, context={'roles': user.roles}
         )
         menus_data = [m for m in serializer.data if m['opciones']]
-        return Response({'rol': user.rol, 'menus': menus_data})
+        return Response({'roles': user.roles, 'menus': menus_data})

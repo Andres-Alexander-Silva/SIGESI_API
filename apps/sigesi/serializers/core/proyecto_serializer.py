@@ -65,7 +65,7 @@ class ProyectoCreateUpdateSerializer(serializers.ModelSerializer):
         user = request.user if request else None
 
         # Asignaciones automáticas para Estudiantes
-        if user and user.rol in [User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]:
+        if user and user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
             validated_data['estado'] = Proyecto.EstadoChoices.IDEA
             validated_data['lider'] = user
             
@@ -82,7 +82,7 @@ class ProyectoCreateUpdateSerializer(serializers.ModelSerializer):
         if estudiantes:
             proyecto.estudiantes.set(estudiantes)
             
-        if user and user.rol in [User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]:
+        if user and user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
             proyecto.estudiantes.add(user)
 
         return proyecto
@@ -92,7 +92,7 @@ class ProyectoCreateUpdateSerializer(serializers.ModelSerializer):
         user = request.user if request else None
 
         # Prevenir que estudiantes cambien el estado o líder
-        if user and user.rol in [User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]:
+        if user and user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
             validated_data.pop('estado', None)
             validated_data.pop('lider', None)
 
@@ -111,7 +111,7 @@ class ProyectoChangeStateSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         user = request.user if request else None
         
-        if user and user.rol in [User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]:
+        if user and user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
             raise serializers.ValidationError("Los estudiantes no tienen permisos para cambiar el estado del proyecto.")
             
         return value

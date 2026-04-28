@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractUser
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.conf import settings
 
@@ -84,8 +85,12 @@ class User(AbstractUser):
         max_length=20, blank=True, verbose_name='Teléfono')
     foto = models.ImageField(upload_to='usuarios/fotos/',
                              blank=True, null=True, verbose_name='Foto de perfil')
-    rol = models.CharField(max_length=30, choices=RolChoices.choices,
-                           default=RolChoices.ESTUDIANTE, verbose_name='Rol')
+    roles = ArrayField(
+        models.CharField(max_length=30, choices=RolChoices.choices),
+        default=list,
+        verbose_name='Roles',
+        help_text='Lista de roles asignados al usuario.',
+    )
     codigo_estudiantil = models.CharField(
         max_length=20, blank=True, verbose_name='Código estudiantil')
     programa_academico = models.ForeignKey(
@@ -112,26 +117,41 @@ class User(AbstractUser):
         ordering = ['last_name', 'first_name']
 
     def __str__(self):
-        return f"{self.get_full_name()} - {self.get_rol_display()}"
+        return f"{self.get_full_name()} - {', '.join(self.get_roles_display())}"
 
     def save(self, *args, **kwargs):
         if self.is_graduated:
             self.email = None
         super().save(*args, **kwargs)
 
+    # ---- Helpers multi-rol ----
+
+    def tiene_rol(self, rol):
+        """Verifica si el usuario tiene un rol específico."""
+        return rol in self.roles
+
+    def tiene_alguno_de(self, roles_lista):
+        """Verifica si el usuario tiene al menos uno de los roles dados."""
+        return bool(set(self.roles) & set(roles_lista))
+
+    def get_roles_display(self):
+        """Retorna la representación legible de todos los roles."""
+        display_map = dict(self.RolChoices.choices)
+        return [display_map.get(r, r) for r in self.roles]
+
     def puede_consultar(self, url_opcion):
         """Verifica si el usuario puede consultar la opción con la URL dada."""
         return Permiso.objects.filter(
-            rol=self.rol, opcion__url=url_opcion,
+            rol__in=self.roles, opcion__url=url_opcion,
             puede_consultar=True, opcion__estado=True,
         ).exists()
 
     def obtener_menus(self):
-        """Retorna los menús accesibles según el rol del usuario."""
+        """Retorna los menús accesibles según los roles del usuario."""
         return Menu.objects.filter(
             estado=True,
             opciones__estado=True,
-            opciones__permisos__rol=self.rol,
+            opciones__permisos__rol__in=self.roles,
         ).distinct()
 
 

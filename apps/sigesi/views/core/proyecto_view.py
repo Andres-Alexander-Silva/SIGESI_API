@@ -37,10 +37,10 @@ class ProyectoViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return queryset.none()
 
-        if user.rol == User.RolChoices.ADMINISTRADOR:
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return queryset
 
-        if user.rol in [User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DIRECTOR_GRUPO]:
+        if user.tiene_alguno_de([User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DIRECTOR_GRUPO]):
             # Retorna proyectos donde sea el director, o proyectos de semilleros que dirige
             return queryset.filter(
                 models.Q(director=user) |
@@ -48,7 +48,7 @@ class ProyectoViewSet(viewsets.ModelViewSet):
                 models.Q(semilleros__grupo_investigacion__director=user)
             ).distinct()
 
-        if user.rol in [User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]:
+        if user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
             # Retorna proyectos donde es líder o estudiante vinculado
             return queryset.filter(
                 models.Q(lider=user) |

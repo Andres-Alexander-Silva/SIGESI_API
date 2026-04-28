@@ -56,6 +56,6 @@ class JWTAuthentication(BaseJWTAuthentication):
         if not user.is_active:
             raise AuthenticationFailed("Usuario inactivo")
 
-        logger.debug("Usuario autenticado: %s (rol: %s)", user, user.rol)
+        logger.debug("Usuario autenticado: %s (roles: %s)", user, user.roles)
 
         return (user, validated_token)

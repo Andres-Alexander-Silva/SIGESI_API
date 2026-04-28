@@ -174,7 +174,7 @@ class PermisosConsumer(AsyncWebsocketConsumer):
             menus = Menu.objects.filter(
                 estado=True,
                 opciones__estado=True,
-                opciones__permisos__rol=user.rol,
+                opciones__permisos__rol__in=user.roles,
             ).distinct()
             
             # Serializar los datos
@@ -188,23 +188,24 @@ class PermisosConsumer(AsyncWebsocketConsumer):
                 }
                 
                 for opcion in menu.opciones.filter(estado=True):
-                    permiso = opcion.permisos.filter(rol=user.rol).first()
-                    if permiso:
+                    # Combinar permisos de todos los roles del usuario (OR lógico)
+                    permisos = opcion.permisos.filter(rol__in=user.roles)
+                    if permisos.exists():
                         menu_data['opciones'].append({
                             'id': opcion.id,
                             'nombre': opcion.nombre,
                             'url': opcion.url,
-                            'puede_consultar': permiso.puede_consultar,
-                            'puede_crear': permiso.puede_crear,
-                            'puede_actualizar': permiso.puede_actualizar,
-                            'puede_eliminar': permiso.puede_eliminar,
+                            'puede_consultar': any(p.puede_consultar for p in permisos),
+                            'puede_crear': any(p.puede_crear for p in permisos),
+                            'puede_actualizar': any(p.puede_actualizar for p in permisos),
+                            'puede_eliminar': any(p.puede_eliminar for p in permisos),
                         })
                 
                 if menu_data['opciones']:
                     menus_data.append(menu_data)
             
             return {
-                'rol': user.rol,
+                'roles': user.roles,
                 'menus': menus_data,
             }
         except User.DoesNotExist:

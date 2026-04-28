@@ -57,7 +57,7 @@ def __check_permission(request, codigo_opcion):
 
     try:
         return Permiso.objects.filter(
-            rol=user.rol,
+            rol__in=user.roles,
             opcion__codigo=codigo_opcion,
             opcion__is_active=True,
             permitido=True
@@ -79,7 +79,7 @@ def __check_privilege_func(request, codigo_opcion):
 
     try:
         return Permiso.objects.filter(
-            rol=user.rol,
+            rol__in=user.roles,
             opcion__codigo=codigo_opcion,
             opcion__is_active=True,
             permitido=True

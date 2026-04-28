@@ -18,21 +18,21 @@ class SemilleroRolePermission(BasePermission):
         user = request.user
         
         # Administrador tiene acceso total
-        if user.rol == User.RolChoices.ADMINISTRADOR:
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return True
             
         # Estudiantes y líderes estudiantiles solo lectura
-        if user.rol in [User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]:
+        if user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
             return request.method in SAFE_METHODS
             
         # Director de semillero no puede crear ni eliminar
-        if user.rol == User.RolChoices.DIRECTOR_SEMILLERO:
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
             if request.method in ['POST', 'DELETE']:
                 return False
             return True
             
         # Director de grupo
-        if user.rol == User.RolChoices.DIRECTOR_GRUPO:
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
             if request.method == 'POST':
                 grupo_id = request.data.get('grupo_investigacion')
                 if grupo_id:
@@ -46,21 +46,21 @@ class SemilleroRolePermission(BasePermission):
         user = request.user
         
         # Administrador tiene acceso total
-        if user.rol == User.RolChoices.ADMINISTRADOR:
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return True
             
         # Solo lectura para estudiantes
-        if user.rol in [User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]:
+        if user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
             return request.method in SAFE_METHODS
             
         # Director de semillero: solo puede ver/editar su propio semillero
-        if user.rol == User.RolChoices.DIRECTOR_SEMILLERO:
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
             if request.method == 'DELETE':
                 return False
             return obj.director == user
             
         # Director de grupo: solo puede gestionar semilleros de su grupo
-        if user.rol == User.RolChoices.DIRECTOR_GRUPO:
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
             return obj.grupo_investigacion.director == user
             
         return False
@@ -81,7 +81,7 @@ class ProyectoRolePermission(BasePermission):
         user = request.user
         
         # Administrador tiene acceso total
-        if user.rol == User.RolChoices.ADMINISTRADOR:
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return True
             
         # Para GET, todos pueden consultar la lista (la vista filtrará el queryset)
@@ -102,7 +102,7 @@ class ProyectoRolePermission(BasePermission):
         user = request.user
         
         # Administrador tiene acceso total
-        if user.rol == User.RolChoices.ADMINISTRADOR:
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return True
             
         # Lectura
@@ -112,7 +112,7 @@ class ProyectoRolePermission(BasePermission):
             return True
             
         # Directores pueden gestionar proyectos de su semillero/grupo
-        if user.rol in [User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DIRECTOR_GRUPO]:
+        if user.tiene_alguno_de([User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DIRECTOR_GRUPO]):
             # Verificar si el proyecto pertenece a un semillero/grupo del director
             if obj.semilleros.filter(director=user).exists():
                 return True
@@ -123,7 +123,7 @@ class ProyectoRolePermission(BasePermission):
             return False
             
         # Estudiantes/Líderes solo pueden editar si son el líder o están vinculados
-        if user.rol in [User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]:
+        if user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
             if request.method == 'DELETE':
                 return False  # No pueden eliminar
                 
@@ -134,4 +134,3 @@ class ProyectoRolePermission(BasePermission):
             return False
             
         return False
-

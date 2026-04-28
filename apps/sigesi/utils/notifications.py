@@ -6,13 +6,13 @@ from asgiref.sync import async_to_sync
 logger = logging.getLogger(__name__)
 
 
-def notificar_actualizacion_permisos(user_id, rol=None, menus_data=None, mensaje="Tu acceso ha sido actualizado"):
+def notificar_actualizacion_permisos(user_id, roles=None, menus_data=None, mensaje="Tu acceso ha sido actualizado"):
     """
     Envía una notificación en tiempo real a un usuario sobre la actualización de sus permisos.
     
     Args:
         user_id: ID del usuario a notificar
-        rol: Rol del usuario (opcional)
+        roles: Lista de roles del usuario (opcional)
         menus_data: Datos de menús y permisos actualizados (opcional)
         mensaje: Mensaje descriptivo de la notificación
         
@@ -28,7 +28,7 @@ def notificar_actualizacion_permisos(user_id, rol=None, menus_data=None, mensaje
             'type': 'permisos_update',
             'message': mensaje,
             'data': {
-                'rol': rol,
+                'roles': roles or [],
                 'menus': menus_data or [],
             },
             'timestamp': timezone.now().isoformat(),
@@ -56,7 +56,7 @@ def obtener_permisos_usuario(user):
         user: Instancia del modelo User
         
     Returns:
-        dict: Diccionario con rol y menus serializados
+        dict: Diccionario con roles y menus serializados
     """
     try:
         from apps.sigesi.models import Menu
@@ -65,22 +65,22 @@ def obtener_permisos_usuario(user):
         menus = Menu.objects.filter(
             estado=True,
             opciones__estado=True,
-            opciones__permisos__rol=user.rol,
+            opciones__permisos__rol__in=user.roles,
         ).distinct()
 
         serializer = MenuPerfilSerializer(
-            menus, many=True, context={'rol': user.rol}
+            menus, many=True, context={'roles': user.roles}
         )
         menus_data = [m for m in serializer.data if m['opciones']]
         
         return {
-            'rol': user.rol,
+            'roles': user.roles,
             'menus': menus_data,
         }
     except Exception as e:
         logger.error(f"Error obteniendo permisos del usuario {user.id}: {str(e)}")
         return {
-            'rol': user.rol,
+            'roles': user.roles,
             'menus': [],
         }
 
@@ -93,11 +93,11 @@ def notificar_cambio_permiso(permiso_obj):
         permiso_obj: Instancia del modelo Permiso que fue actualizada
     """
     try:
-        # Obtener todos los usuarios con este rol
+        # Obtener todos los usuarios que tienen este rol en su lista de roles
         from django.contrib.auth import get_user_model
         User = get_user_model()
         
-        usuarios_rol = User.objects.filter(rol=permiso_obj.rol, is_active=True)
+        usuarios_rol = User.objects.filter(roles__contains=[permiso_obj.rol], is_active=True)
         
         for usuario in usuarios_rol:
             # Obtener los permisos actualizados del usuario
@@ -106,7 +106,7 @@ def notificar_cambio_permiso(permiso_obj):
             # Enviar notificación
             notificar_actualizacion_permisos(
                 user_id=usuario.id,
-                rol=usuario.rol,
+                roles=usuario.roles,
                 menus_data=permisos_data['menus'],
                 mensaje=f"Tu acceso a '{permiso_obj.opcion.nombre}' ha sido actualizado"
             )
@@ -127,7 +127,7 @@ def notificar_cambios_permisos_multiples(rol):
         from django.contrib.auth import get_user_model
         User = get_user_model()
         
-        usuarios_rol = User.objects.filter(rol=rol, is_active=True)
+        usuarios_rol = User.objects.filter(roles__contains=[rol], is_active=True)
         
         for usuario in usuarios_rol:
             # Obtener los permisos actualizados del usuario
@@ -136,7 +136,7 @@ def notificar_cambios_permisos_multiples(rol):
             # Enviar notificación con los permisos actualizados
             notificar_actualizacion_permisos(
                 user_id=usuario.id,
-                rol=usuario.rol,
+                roles=usuario.roles,
                 menus_data=permisos_data['menus'],
                 mensaje="La configuración de permisos de tu rol ha sido actualizada"
             )
