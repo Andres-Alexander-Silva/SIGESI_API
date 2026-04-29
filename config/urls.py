@@ -30,6 +30,8 @@ urlpatterns = [
     path('api/v1/core/', include('apps.sigesi.routers.core.semilleros_urls')),
     # Proyectos
     path('api/v1/core/', include('apps.sigesi.routers.core.proyectos_urls')),
+    # Inscripciones
+    path('api/v1/core/', include('apps.sigesi.routers.core.inscripciones_urls')),
     # Swagger / Documentación
     path('swagger/', schema_view.with_ui('swagger',
          cache_timeout=0), name='schema-swagger-ui'),

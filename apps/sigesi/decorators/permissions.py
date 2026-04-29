@@ -134,3 +134,70 @@ class ProyectoRolePermission(BasePermission):
             return False
             
         return False
+
+
+class InscripcionRolePermission(BasePermission):
+    """
+    Control de acceso para inscripciones de semillero (MatriculaSemillero).
+    - Administrador: Acceso total (CRUD completo).
+    - Estudiante: Puede crear (auto-inscripción), listar las suyas y retirarse (DELETE).
+    - Director de Semillero: Puede listar miembros de su semillero e inscribir estudiantes.
+    - Director de Grupo: Solo lectura de todas las inscripciones.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        # Administrador tiene acceso total
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Estudiante: GET, POST, DELETE permitidos (restricción a nivel de objeto)
+        if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+            if request.method in ('GET', 'HEAD', 'OPTIONS', 'POST', 'DELETE'):
+                return True
+            return False
+
+        # Director de Semillero: GET y POST
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            if request.method in SAFE_METHODS or request.method == 'POST':
+                return True
+            return False
+
+        # Director de Grupo: solo lectura
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+            return request.method in SAFE_METHODS
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        # Administrador tiene acceso total
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Director de Grupo: puede ver cualquier inscripción
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+            return request.method in SAFE_METHODS
+
+        # Director de Semillero: puede ver inscripciones de su semillero
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            if request.method in SAFE_METHODS:
+                return obj.semillero.director == user
+            return False
+
+        # Estudiante: solo puede ver/eliminar sus propias inscripciones
+        if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+            if obj.estudiante != user:
+                return False
+            if request.method in SAFE_METHODS:
+                return True
+            if request.method == 'DELETE':
+                return obj.estado == 'activa'
+            return False
+
+        return False
