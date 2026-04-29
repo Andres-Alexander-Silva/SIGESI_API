@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from apps.sigesi.models import User, Menu
@@ -12,15 +13,37 @@ from apps.sigesi.serializers.config.user_serializer import (
     UserChangePasswordSerializer,
     MenuPerfilSerializer,
 )
+from apps.sigesi.utils.ordering import MultiFieldOrderingFilter
+from apps.sigesi.filters.user_filter import UserFilter
 
 
 
 class UserViewSet(viewsets.ModelViewSet):
     """
     ViewSet CRUD para la gestión de usuarios del sistema.
+
+    Soporta ordenamiento dinámico mediante el parámetro ?ordering:
+      - ?ordering=nombre   → ordena por apellido A→Z, luego nombre A→Z
+      - ?ordering=-nombre  → ordena por apellido Z→A
+      - ?ordering=fecha    → ordena por fecha de creación (más antiguos primero)
+      - ?ordering=-fecha   → ordena por fecha de creación (más recientes primero)
+
+    Filtros futuros se agregan en apps/sigesi/filters/user_filter.py (UserFilter).
     """
-    queryset = User.objects.all().order_by('last_name', 'first_name')
+
+    queryset           = User.objects.all().select_related('programa_academico')
     permission_classes = [IsAuthenticated]
+
+    # ---- Ordenamiento y filtros ----------------------------------------
+    filter_backends  = [DjangoFilterBackend, MultiFieldOrderingFilter]
+    filterset_class  = UserFilter
+
+    # Mapeo de alias legibles → campos reales del modelo
+    ordering_aliases = {
+        'nombre': ['last_name', 'first_name'],
+        'fecha':  ['created_at'],
+    }
+    ordering = ['last_name', 'first_name']   # orden por defecto
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -37,7 +60,25 @@ class UserViewSet(viewsets.ModelViewSet):
     # ------------------------------------------------------------------ list
     @swagger_auto_schema(
         operation_summary="Listar usuarios",
-        operation_description="Retorna la lista de todos los usuarios registrados en el sistema.",
+        operation_description=(
+            "Retorna la lista paginada de todos los usuarios registrados en el sistema.\n\n"
+            "**Ordenamiento** (`?ordering=<valor>`):\n"
+            "- `nombre` — apellido A→Z, nombre A→Z (por defecto)\n"
+            "- `-nombre` — apellido Z→A\n"
+            "- `fecha` — más antiguos primero\n"
+            "- `-fecha` — más recientes primero\n\n"
+            "*Los filtros adicionales (rol, is_active, programa_academico) se habilitarán próximamente.*"
+        ),
+        manual_parameters=[
+            openapi.Parameter(
+                name='ordering',
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                required=False,
+                description='Criterio de ordenamiento: `nombre`, `-nombre`, `fecha`, `-fecha`.',
+                enum=['nombre', '-nombre', 'fecha', '-fecha'],
+            ),
+        ],
         responses={
             200: UserSerializer(many=True),
             401: openapi.Response("No autenticado"),
@@ -45,7 +86,7 @@ class UserViewSet(viewsets.ModelViewSet):
         tags=["Usuarios"],
     )
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
+        queryset   = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
