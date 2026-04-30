@@ -1,0 +1,11 @@
+Username,Cédula,Nombres,Apellidos,Email Institucional,Correo Personal,Teléfono,Roles,Código Estudiantil,Programa Académico
+user1,1000000001,Juan,Pérez,juan.perez@ufps.edu.co,juanp@gmail.com,3001112233,estudiante,1150001,Ingeniería de Sistemas
+user2,1000000002,Ana,Gómez,ana.gomez@ufps.edu.co,anag@gmail.com,3002223344,estudiante,1150002,Ingeniería de Sistemas
+user3,1000000003,Carlos,Ruiz,carlos.ruiz@ufps.edu.co,carlosr@gmail.com,3003334455,"director semillero, estudiante",1150003,Ingeniería de Sistemas
+user4,1000000004,María,López,maria.lopez@ufps.edu.co,marial@gmail.com,3004445566,director grupo,1150004,Ingeniería de Sistemas
+user5,1000000005,Pedro,Díaz,pedro.diaz@ufps.edu.co,pedrod@gmail.com,3005556677,administrador,1150005,Ingeniería de Sistemas
+user6,1000000006,Laura,Torres,laura.torres@ufps.edu.co,laurat@gmail.com,3006667788,"estudiante, lider estudiantil",1150006,Ingeniería de Sistemas
+user7,1000000007,Diego,Ramírez,diego.ramirez@ufps.edu.co,diegor@gmail.com,3007778899,estudiante,1150007,Ingeniería de Sistemas
+user8,1000000008,Sofía,Hernández,sofia.hernandez@ufps.edu.co,sofiah@gmail.com,3008889900,estudiante,1150008,Ingeniería de Sistemas
+user9,1000000009,Luis,García,luis.garcia@ufps.edu.co,luisg@gmail.com,3009990011,estudiante,1150009,Ingeniería de Sistemas
+user10,1000000010,Carmen,Vargas,carmen.vargas@ufps.edu.co,carmenv@gmail.com,3000001122,estudiante,1150010,Ingeniería de Sistemas

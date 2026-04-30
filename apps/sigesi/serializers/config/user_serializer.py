@@ -206,3 +206,16 @@ class UserChangePasswordSerializer(serializers.Serializer):
         user.set_password(self.validated_data['password_nuevo'])
         user.save()
         return user
+
+
+class UserBulkUploadSerializer(serializers.Serializer):
+    """Serializer para la carga masiva de usuarios desde un archivo Excel."""
+    file = serializers.FileField(
+        help_text='Archivo Excel (.xlsx) con los datos de los usuarios.'
+    )
+
+    def validate_file(self, value):
+        if not value.name.endswith('.xlsx'):
+            raise serializers.ValidationError('El archivo debe tener extensión .xlsx.')
+        return value
+
