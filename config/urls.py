@@ -25,6 +25,7 @@ urlpatterns = [
     # Auth
     path('api/v1/auth/', include('apps.sigesi.routers.auth.auth_urls')),
     # Config & RBAC
+    path('api/v1/core/', include('apps.sigesi.routers.core.lineas_urls')),  
     path('api/v1/config/', include('apps.sigesi.routers.config.rbac_urls')),
     path('api/v1/config/', include('apps.sigesi.routers.config.users_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.semilleros_urls')),
