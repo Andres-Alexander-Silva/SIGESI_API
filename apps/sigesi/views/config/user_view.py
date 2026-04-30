@@ -65,14 +65,24 @@ class UserViewSet(viewsets.ModelViewSet):
         operation_summary="Listar usuarios",
         operation_description=(
             "Retorna la lista paginada de todos los usuarios registrados en el sistema.\n\n"
+            "**Filtrado** (`?rol=<valor>`):\n"
+            "- `administrador`, `director_grupo`, `director_semillero`, `lider_estudiantil`, `estudiante`\n\n"
             "**Ordenamiento** (`?ordering=<valor>`):\n"
             "- `nombre` — apellido A→Z, nombre A→Z (por defecto)\n"
             "- `-nombre` — apellido Z→A\n"
             "- `fecha` — más antiguos primero\n"
             "- `-fecha` — más recientes primero\n\n"
-            "*Los filtros adicionales (rol, is_active, programa_academico) se habilitarán próximamente.*"
+            "*Otros filtros adicionales (is_active, programa_academico) se habilitarán próximamente.*"
         ),
         manual_parameters=[
+            openapi.Parameter(
+                name='rol',
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                required=False,
+                description='Filtrar usuarios por un rol específico.',
+                enum=[c[0] for c in User.RolChoices.choices],
+            ),
             openapi.Parameter(
                 name='ordering',
                 in_=openapi.IN_QUERY,
