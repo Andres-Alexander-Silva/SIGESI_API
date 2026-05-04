@@ -234,8 +234,21 @@ class UserViewSet(viewsets.ModelViewSet):
         operation_description=(
             "Retorna los menús del usuario autenticado con sus opciones. "
             "Cada opción incluye los 4 permisos CRUD del rol: "
-            "`puede_consultar`, `puede_crear`, `puede_actualizar`, `puede_eliminar`."
+            "`puede_consultar`, `puede_crear`, `puede_actualizar`, `puede_eliminar`.\n\n"
+            "Si se indica el query param `?rol=<valor>`, se retornan únicamente los permisos "
+            "del rol especificado (debe ser un rol que posea el usuario). "
+            "Si no se indica, se combinan los permisos de todos los roles del usuario (OR lógico)."
         ),
+        manual_parameters=[
+            openapi.Parameter(
+                name='rol',
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                required=False,
+                description='Filtrar permisos por un rol específico del usuario.',
+                enum=[c[0] for c in User.RolChoices.choices],
+            ),
+        ],
         responses={
             200: openapi.Response(
                 description="Menús con opciones y permisos CRUD del usuario",
@@ -279,6 +292,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     }
                 },
             ),
+            400: openapi.Response("Rol inválido o el usuario no posee ese rol"),
             401: openapi.Response("No autenticado"),
         },
         tags=["Usuarios"],
@@ -287,18 +301,37 @@ class UserViewSet(viewsets.ModelViewSet):
             permission_classes=[IsAuthenticated])
     def mis_permisos(self, request):
         user = request.user
-        # Combinar menús accesibles por cualquiera de los roles del usuario
+        rol_param = request.query_params.get('rol', None)
+
+        if rol_param:
+            # Validar que el rol solicitado sea válido y pertenezca al usuario
+            roles_validos = [c[0] for c in User.RolChoices.choices]
+            if rol_param not in roles_validos:
+                return Response(
+                    {'message': f"El rol '{rol_param}' no es válido. Opciones: {roles_validos}."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if rol_param not in user.roles:
+                return Response(
+                    {'message': f"El usuario no posee el rol '{rol_param}'."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            roles_activos = [rol_param]
+        else:
+            # Sin filtro: combinar todos los roles del usuario
+            roles_activos = user.roles
+
         menus = Menu.objects.filter(
             estado=True,
             opciones__estado=True,
-            opciones__permisos__rol__in=user.roles,
+            opciones__permisos__rol__in=roles_activos,
         ).distinct()
 
         serializer = MenuPerfilSerializer(
-            menus, many=True, context={'roles': user.roles}
+            menus, many=True, context={'roles': roles_activos}
         )
         menus_data = [m for m in serializer.data if m['opciones']]
-        return Response({'roles': user.roles, 'menus': menus_data})
+        return Response({'rol': rol_param or user.roles, 'menus': menus_data})
 
     # --------------------------------------------------- carga masiva
     @swagger_auto_schema(
