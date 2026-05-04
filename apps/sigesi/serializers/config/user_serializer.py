@@ -165,7 +165,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         user = self.instance
         if User.objects.exclude(pk=user.pk).filter(email=value).exists():
             raise serializers.ValidationError(
-                'Ya existe un usuario registrado con este correo electrónico.'
+                {'message': 'Ya existe un usuario registrado con este correo electrónico.'}
             )
         return value
 
@@ -191,14 +191,14 @@ class UserChangePasswordSerializer(serializers.Serializer):
     def validate(self, data):
         if data['password_nuevo'] != data['password_confirmacion']:
             raise serializers.ValidationError(
-                {'password_confirmacion': 'Las contraseñas nuevas no coinciden.'}
+                {'message': 'Las contraseñas nuevas no coinciden.'}
             )
         return data
 
     def validate_password_actual(self, value):
         user = self.context['request'].user
         if not user.check_password(value):
-            raise serializers.ValidationError('La contraseña actual es incorrecta.')
+            raise serializers.ValidationError({'message': 'La contraseña actual es incorrecta.'})
         return value
 
     def save(self):
@@ -216,6 +216,6 @@ class UserBulkUploadSerializer(serializers.Serializer):
 
     def validate_file(self, value):
         if not value.name.endswith('.xlsx'):
-            raise serializers.ValidationError('El archivo debe tener extensión .xlsx.')
+            raise serializers.ValidationError({'message': 'El archivo debe tener extensión .xlsx.'})
         return value
 
