@@ -201,3 +201,63 @@ class InscripcionRolePermission(BasePermission):
             return False
 
         return False
+
+
+class ActividadRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Actividades.
+    - Estudiante: Solo lectura.
+    - Administrador, Director (Grupo/Semillero), Líder Estudiantil: Acceso total (CRUD completo).
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        # Administrador, Líder Estudiantil, Directores: Acceso total
+        if user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.LIDER_ESTUDIANTIL,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+            User.RolChoices.DIRECTOR_GRUPO
+        ]):
+            return True
+
+        # Estudiante: Solo lectura
+        if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+            return request.method in SAFE_METHODS
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        # Administrador tiene acceso total
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Estudiante: Solo lectura
+        if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+            return request.method in SAFE_METHODS
+
+        # Líder Estudiantil: Acceso si es el líder del proyecto de la actividad
+        if user.tiene_rol(User.RolChoices.LIDER_ESTUDIANTIL):
+            if obj.proyecto.lider == user:
+                return True
+            return request.method in SAFE_METHODS
+
+        # Director de Semillero: Acceso si es director del proyecto o del semillero del proyecto
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            if obj.proyecto.director == user or obj.proyecto.semilleros.filter(director=user).exists():
+                return True
+            return request.method in SAFE_METHODS
+
+        # Director de Grupo: Acceso si es director del grupo asociado a los semilleros del proyecto
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+            if obj.proyecto.semilleros.filter(grupo_investigacion__director=user).exists():
+                return True
+            return request.method in SAFE_METHODS
+
+        return False
