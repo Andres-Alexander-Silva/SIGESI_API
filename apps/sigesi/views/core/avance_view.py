@@ -4,7 +4,7 @@ from django.db import models as db_models
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from apps.sigesi.models import Avance, User
+from apps.sigesi.models import Avance, Proyecto, User
 from apps.sigesi.serializers.core.avance_serializer import (
     AvanceListSerializer,
     AvanceCreateUpdateSerializer,
@@ -21,11 +21,19 @@ class AvanceViewSet(viewsets.ModelViewSet):
     actualización.  Aplica control de acceso por rol en todos los endpoints.
 
     Filtros disponibles en GET /avances:
-      ?proyecto=<id>  – filtra por ID de proyecto
-      ?estado=<val>   – filtra por estado del avance
+      ?proyecto_id=<id>        – avances de un proyecto (canónico)
+      ?usuario_id=<id>         – avances de un usuario en un proyecto (canónico)
+      ?proyecto=<id>           – alias de proyecto_id (backward-compat)
+      ?registrado_por=<id>     – alias de usuario_id  (backward-compat)
+      ?estado=<val>            – filtra por estado del avance
       ?fecha_desde=YYYY-MM-DD  – avances desde esta fecha
       ?fecha_hasta=YYYY-MM-DD  – avances hasta esta fecha
-      ?registrado_por=<id>     – filtra por usuario que registró el avance
+
+    Validaciones en GET /avances:
+      • proyecto_id debe referenciar un proyecto existente → 404
+      • usuario_id debe referenciar un usuario existente  → 404
+      • el usuario referenciado debe pertenecer al proyecto → 400
+      • un estudiante no puede filtrar por otro usuario_id → 403
     """
 
     permission_classes = [AvanceRolePermission]
@@ -87,16 +95,126 @@ class AvanceViewSet(viewsets.ModelViewSet):
     # Swagger docs
     # ------------------------------------------------------------------
 
-    @swagger_auto_schema(
-        operation_summary="Listar avances",
-        operation_description=(
-            "Retorna la lista de avances permitidos para el usuario autenticado. "
-            "Soporta filtros: ?proyecto, ?estado, ?fecha_desde, ?fecha_hasta, ?registrado_por."
+    # ── Parámetros Swagger para el listado filtrado ───────────────────────
+    _list_query_params = [
+        openapi.Parameter(
+            'proyecto_id', openapi.IN_QUERY,
+            description='ID del proyecto a consultar.',
+            type=openapi.TYPE_INTEGER,
         ),
-        responses={200: AvanceListSerializer(many=True)},
+        openapi.Parameter(
+            'usuario_id', openapi.IN_QUERY,
+            description='ID del usuario (registrador) a filtrar dentro del proyecto.',
+            type=openapi.TYPE_INTEGER,
+        ),
+        openapi.Parameter(
+            'estado', openapi.IN_QUERY,
+            description='Estado del avance: borrador | enviado | revisado | aprobado | rechazado.',
+            type=openapi.TYPE_STRING,
+        ),
+        openapi.Parameter(
+            'fecha_desde', openapi.IN_QUERY,
+            description='Fecha mínima del avance (YYYY-MM-DD).',
+            type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE,
+        ),
+        openapi.Parameter(
+            'fecha_hasta', openapi.IN_QUERY,
+            description='Fecha máxima del avance (YYYY-MM-DD).',
+            type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE,
+        ),
+    ]
+
+    @swagger_auto_schema(
+        operation_summary="Listar avances con filtros por proyecto y usuario",
+        operation_description=(
+            "Retorna la lista de avances permitidos para el usuario autenticado.\n\n"
+            "**Casos de uso:**\n"
+            "- Avances de un proyecto: `?proyecto_id={id}`\n"
+            "- Avances de un estudiante en un proyecto: `?proyecto_id={id}&usuario_id={id}`\n\n"
+            "**Protecciones:**\n"
+            "- `proyecto_id` debe existir en base de datos (→ 404 si no).\n"
+            "- `usuario_id` debe existir y pertenecer al proyecto (→ 404 / 400).\n"
+            "- Un estudiante **no puede** filtrar por `usuario_id` ajeno (→ 403).\n"
+            "- Cada rol recibe únicamente los avances que le corresponden según visibilidad."
+        ),
+        manual_parameters=_list_query_params,
+        responses={
+            200: AvanceListSerializer(many=True),
+            400: openapi.Response("usuario_id no pertenece al proyecto indicado"),
+            401: openapi.Response("Token JWT inválido o ausente"),
+            403: openapi.Response("Sin permisos para ver avances de ese usuario"),
+            404: openapi.Response("Proyecto o usuario no encontrado"),
+        },
         tags=["Avances"],
     )
     def list(self, request, *args, **kwargs):
+        """
+        Lista de avances con validaciones de existencia, pertenencia y visibilidad.
+
+        Flujo de validación:
+          1. Si se recibe `proyecto_id`, verificar que el proyecto exista.
+          2. Si se recibe `usuario_id`, verificar que el usuario exista.
+          3. Si ambos están presentes, verificar que el usuario pertenezca al proyecto.
+          4. Si el solicitante es Estudiante y el `usuario_id` no es el suyo → 403.
+          5. El queryset ya aplica el filtro RBAC antes de llegar al filterset.
+        """
+        proyecto_id = request.query_params.get('proyecto_id') or request.query_params.get('proyecto')
+        usuario_id  = request.query_params.get('usuario_id')  or request.query_params.get('registrado_por')
+        auth_user   = request.user
+
+        # ── 1. Validar existencia del proyecto ───────────────────────────
+        proyecto = None
+        if proyecto_id:
+            try:
+                proyecto = Proyecto.objects.get(pk=proyecto_id)
+            except (Proyecto.DoesNotExist, ValueError):
+                return Response(
+                    {'message': f'El proyecto con id={proyecto_id} no existe.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        # ── 2. Validar existencia del usuario ────────────────────────────
+        usuario_filtrado = None
+        if usuario_id:
+            try:
+                usuario_filtrado = User.objects.get(pk=usuario_id)
+            except (User.DoesNotExist, ValueError):
+                return Response(
+                    {'message': f'El usuario con id={usuario_id} no existe.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        # ── 3. Validar pertenencia del usuario al proyecto ───────────────
+        if proyecto and usuario_filtrado:
+            pertenece = (
+                proyecto.director == usuario_filtrado
+                or proyecto.lider  == usuario_filtrado
+                or proyecto.estudiantes.filter(pk=usuario_filtrado.pk).exists()
+                or proyecto.semilleros.filter(director=usuario_filtrado).exists()
+                or proyecto.semilleros.filter(
+                    grupo_investigacion__director=usuario_filtrado
+                ).exists()
+            )
+            if not pertenece:
+                return Response(
+                    {
+                        'message': (
+                            f'El usuario id={usuario_id} no pertenece al '
+                            f'proyecto id={proyecto_id}.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # ── 4. Estudiante intentando ver avances de otro usuario ─────────
+        if usuario_filtrado and auth_user.tiene_rol(User.RolChoices.ESTUDIANTE):
+            if usuario_filtrado.pk != auth_user.pk:
+                return Response(
+                    {'message': 'No tienes permiso para consultar avances de otros usuarios.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        # ── 5. Delegar al comportamiento estándar (queryset RBAC + filterset) ─
         return super().list(request, *args, **kwargs)
 
     @swagger_auto_schema(
