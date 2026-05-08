@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
-from apps.sigesi.models import User, GrupoInvestigacion
+from apps.sigesi.models import User, GrupoInvestigacion, Actividad
 
 class SemilleroRolePermission(BasePermission):
     """
@@ -259,5 +259,65 @@ class ActividadRolePermission(BasePermission):
             if obj.proyecto.semilleros.filter(grupo_investigacion__director=user).exists():
                 return True
             return request.method in SAFE_METHODS
+
+        return False
+
+
+class EvidenciaRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Evidencias.
+    - El usuario asignado (responsable de la actividad) puede realizar CRUD completo.
+    - Administrador puede ver todas las evidencias (solo lectura).
+    - Director de Grupo puede ver todas las evidencias de los semilleros en su grupo.
+    - Director de Semillero y Líder Estudiantil pueden ver todas las evidencias de su semillero.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        # Todos los autenticados pueden intentar hacer GET (el queryset o has_object_permission filtrará)
+        if request.method in SAFE_METHODS:
+            return True
+
+        # Para crear (POST), verificamos que el usuario sea el responsable de la actividad
+        if request.method == 'POST':
+            actividad_id = request.data.get('actividad')
+            if actividad_id:
+                return Actividad.objects.filter(id=actividad_id, responsable=user).exists()
+            return False
+
+        # Para PUT, PATCH, DELETE se permitirá a nivel de vista, pero se denegará a nivel de objeto 
+        # si no es el responsable.
+        if request.method in ['PUT', 'PATCH', 'DELETE']:
+            return True
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        # El usuario asignado a la actividad tiene permisos completos (CRUD)
+        if obj.actividad.responsable == user:
+            return True
+
+        # Para los demás, solo se permite lectura (SAFE_METHODS)
+        if request.method not in SAFE_METHODS:
+            return False
+
+        # Administrador puede leer todas las evidencias
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Director de Grupo puede leer las evidencias de semilleros de su grupo
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+            return obj.actividad.proyecto.semilleros.filter(grupo_investigacion__director=user).exists()
+
+        # Director de Semillero y Líder Estudiantil pueden leer evidencias de su semillero
+        if user.tiene_alguno_de([User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.LIDER_ESTUDIANTIL]):
+            return obj.actividad.proyecto.semilleros.filter(director=user).exists() or \
+                   obj.actividad.proyecto.semilleros.filter(lider_estudiantil=user).exists()
 
         return False
