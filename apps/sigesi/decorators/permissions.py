@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
-from apps.sigesi.models import User, GrupoInvestigacion, Actividad
+from apps.sigesi.models import User, GrupoInvestigacion, Actividad, Avance
 
 class SemilleroRolePermission(BasePermission):
     """
@@ -319,5 +319,122 @@ class EvidenciaRolePermission(BasePermission):
         if user.tiene_alguno_de([User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.LIDER_ESTUDIANTIL]):
             return obj.actividad.proyecto.semilleros.filter(director=user).exists() or \
                    obj.actividad.proyecto.semilleros.filter(lider_estudiantil=user).exists()
+
+        return False
+
+
+class AvanceRolePermission(BasePermission):
+    """
+    Control de acceso para el módulo de Avances de Proyecto.
+
+    Reglas por rol:
+    ─────────────────────────────────────────────────────────────────
+    Administrador     │ Acceso total (CRUD + auditoría).
+    Director de Grupo │ Ver todos los avances de proyectos de su grupo.
+                      │ Puede agregar observaciones (PATCH).
+                      │ No puede crear ni eliminar avances de otros.
+    Director Semillero│ Igual que Director de Grupo pero en su semillero.
+    Líder Estudiantil │ Puede crear, ver y editar avances de proyectos
+                      │ donde sea líder. Puede agregar observaciones.
+    Estudiante        │ Puede crear avances (solo en proyectos propios).
+                      │ Solo puede ver/editar SUS PROPIOS avances.
+                      │ No puede eliminar.
+    ─────────────────────────────────────────────────────────────────
+    DELETE está protegido a nivel de objeto: solo si el avance no
+    tiene evidencias asociadas (excepto administrador).
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        # Administrador: acceso total
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # GET (list / retrieve): permitido a todos los autenticados;
+        # el queryset de la vista filtrará según rol.
+        if request.method in SAFE_METHODS:
+            return True
+
+        # POST (crear): permitido a todos; la validación de pertenencia
+        # al proyecto se hace en el serializer.
+        if request.method == 'POST':
+            return True
+
+        # PUT / PATCH / DELETE: se revisará a nivel de objeto.
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        # Administrador: acceso total
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # ── Lectura ─────────────────────────────────────────────────
+        if request.method in SAFE_METHODS:
+            # Estudiantes: solo sus propios avances
+            if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+                return obj.registrado_por == user
+
+            # Líderes, directores: avances de proyectos a los que
+            # tienen acceso (verificado por el queryset de la vista)
+            return True
+
+        # ── Escritura (PUT / PATCH) ──────────────────────────────────
+        if request.method in ('PUT', 'PATCH'):
+            # Estudiante: solo sus propios avances
+            if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+                return obj.registrado_por == user
+
+            # Líder Estudiantil: proyectos donde es líder
+            if user.tiene_rol(User.RolChoices.LIDER_ESTUDIANTIL):
+                return obj.proyecto.lider == user
+
+            # Director Semillero: proyectos de su semillero
+            if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+                return (
+                    obj.proyecto.director == user
+                    or obj.proyecto.semilleros.filter(director=user).exists()
+                )
+
+            # Director Grupo: proyectos de semilleros de su grupo
+            if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+                return obj.proyecto.semilleros.filter(
+                    grupo_investigacion__director=user
+                ).exists()
+
+            return False
+
+        # ── Eliminación (DELETE) ─────────────────────────────────────
+        if request.method == 'DELETE':
+            # Estudiantes nunca pueden eliminar
+            if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+                return False
+
+            # Solo el registrador o directores pueden eliminar,
+            # y ÚNICAMENTE si no hay evidencias asociadas.
+            tiene_evidencias = obj.evidencias.exists()
+            if tiene_evidencias:
+                return False
+
+            if user.tiene_rol(User.RolChoices.LIDER_ESTUDIANTIL):
+                return obj.registrado_por == user
+
+            if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+                return (
+                    obj.proyecto.director == user
+                    or obj.proyecto.semilleros.filter(director=user).exists()
+                )
+
+            if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+                return obj.proyecto.semilleros.filter(
+                    grupo_investigacion__director=user
+                ).exists()
+
+            return False
 
         return False
