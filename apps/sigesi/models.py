@@ -519,6 +519,7 @@ class Proyecto(models.Model):
     )
     estudiantes = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
+        through='ProyectoEstudiante',
         related_name='proyectos_vinculados',
         blank=True,
         verbose_name='Estudiantes vinculados'
@@ -546,6 +547,62 @@ class Proyecto(models.Model):
 
     def __str__(self):
         return self.titulo
+
+
+class ProyectoEstudiante(models.Model):
+    """Asociación detallada entre un proyecto y un estudiante participante."""
+
+    class RolProyectoChoices(models.TextChoices):
+        INVESTIGADOR = 'investigador', 'Investigador Principal'
+        COINVESTIGADOR = 'coinvestigador', 'Co-investigador'
+        AUXILIAR = 'auxiliar', 'Auxiliar de Investigación'
+        OTRO = 'otro', 'Otro'
+
+    class EstadoParticipacionChoices(models.TextChoices):
+        ACTIVO = 'activo', 'Activo'
+        INACTIVO = 'inactivo', 'Inactivo'
+
+    proyecto = models.ForeignKey(
+        Proyecto,
+        on_delete=models.CASCADE,
+        related_name='participaciones'
+    )
+    estudiante = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='participaciones_proyecto'
+    )
+    rol_en_proyecto = models.CharField(
+        max_length=20,
+        choices=RolProyectoChoices.choices,
+        default=RolProyectoChoices.AUXILIAR,
+        verbose_name='Rol en el proyecto'
+    )
+    fecha_asignacion = models.DateField(
+        auto_now_add=True,
+        verbose_name='Fecha de asignación'
+    )
+    estado_participacion = models.CharField(
+        max_length=20,
+        choices=EstadoParticipacionChoices.choices,
+        default=EstadoParticipacionChoices.ACTIVO,
+        verbose_name='Estado de participación'
+    )
+    observaciones = models.TextField(
+        blank=True,
+        verbose_name='Observaciones'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Participante de Proyecto'
+        verbose_name_plural = 'Participantes de Proyecto'
+        unique_together = ['proyecto', 'estudiante']
+        ordering = ['-fecha_asignacion']
+
+    def __str__(self):
+        return f"{self.estudiante} en {self.proyecto.titulo} ({self.get_rol_en_proyecto_display()})"
 
 
 class FaseProyecto(models.Model):

@@ -438,3 +438,59 @@ class AvanceRolePermission(BasePermission):
             return False
 
         return False
+
+
+class ProyectoEstudianteRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Participantes de Proyecto.
+    - Administrador, Director de Grupo/Semillero, Líder Estudiantil: Pueden asignar o modificar estudiantes
+      en proyectos bajo su jerarquía.
+    - Estudiantes: Solo lectura de sus propias participaciones o de los proyectos a los que pertenecen.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        # Administrador: Acceso total
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if request.method in SAFE_METHODS:
+            return True
+
+        # Crear (POST): Solo Admin, Directores o Líderes
+        if request.method == 'POST':
+            if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+                return False
+            return True
+
+        # PUT/PATCH/DELETE
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Lectura
+        if request.method in SAFE_METHODS:
+            if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+                # Un estudiante puede ver participaciones de proyectos donde él está o de él mismo
+                return (obj.estudiante == user) or obj.proyecto.participaciones.filter(estudiante=user).exists()
+            return True
+
+        # Modificación/Eliminación: Directores, Líderes sobre sus proyectos
+        if user.tiene_rol(User.RolChoices.LIDER_ESTUDIANTIL):
+            return obj.proyecto.lider == user
+
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            return obj.proyecto.director == user or obj.proyecto.semilleros.filter(director=user).exists()
+
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+            return obj.proyecto.semilleros.filter(grupo_investigacion__director=user).exists()
+
+        return False
