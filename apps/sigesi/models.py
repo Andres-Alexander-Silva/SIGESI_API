@@ -746,7 +746,15 @@ class Evidencia(models.Model):
         Actividad,
         on_delete=models.CASCADE,
         related_name='evidencias',
-        verbose_name='Actividad'
+        verbose_name='Actividad',
+        null=True, blank=True
+    )
+    avance = models.ForeignKey(
+        'Avance',
+        on_delete=models.CASCADE,
+        related_name='evidencias',
+        verbose_name='Avance',
+        null=True, blank=True
     )
     tipo = models.CharField(
         max_length=20, choices=TipoChoices.choices, verbose_name='Tipo')
@@ -832,38 +840,7 @@ class Avance(models.Model):
         return f"Avance {self.fecha} – {self.proyecto.titulo}"
 
 
-class EvidenciaAvance(models.Model):
-    """Archivo de evidencia adjunto a un avance de proyecto."""
 
-    avance = models.ForeignKey(
-        Avance,
-        on_delete=models.CASCADE,
-        related_name='evidencias',
-        verbose_name='Avance'
-    )
-    titulo = models.CharField(max_length=300, verbose_name='Título')
-    descripcion = models.TextField(blank=True, verbose_name='Descripción')
-    archivo = models.FileField(
-        upload_to='avances/%Y/%m/',
-        verbose_name='Archivo de evidencia'
-    )
-    subido_por = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='evidencias_avance_subidas',
-        verbose_name='Subido por'
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = 'Evidencia de Avance'
-        verbose_name_plural = 'Evidencias de Avance'
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"{self.titulo} → {self.avance}"
 
 
 class Alerta(models.Model):

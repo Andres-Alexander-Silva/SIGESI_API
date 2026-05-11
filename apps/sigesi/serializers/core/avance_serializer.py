@@ -1,7 +1,7 @@
 import os
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from apps.sigesi.models import Avance, EvidenciaAvance, Proyecto
+from apps.sigesi.models import Avance, Evidencia, Proyecto
 
 User = get_user_model()
 
@@ -34,7 +34,7 @@ def _validate_file(archivo):
 # Serializer de evidencias (lectura)
 # ---------------------------------------------------------------------------
 
-class EvidenciaAvanceListSerializer(serializers.ModelSerializer):
+class EvidenciaListSerializer(serializers.ModelSerializer):
     """
     Serializador de solo lectura para Evidencias de Avance.
     """
@@ -42,7 +42,7 @@ class EvidenciaAvanceListSerializer(serializers.ModelSerializer):
     archivo_url       = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
-        model  = EvidenciaAvance
+        model  = Evidencia
         fields = [
             'id', 'avance', 'titulo', 'descripcion',
             'archivo', 'archivo_url',
@@ -73,7 +73,7 @@ class AvanceListSerializer(serializers.ModelSerializer):
     """
     proyecto_titulo     = serializers.CharField(source='proyecto.titulo', read_only=True)
     registrado_por_nombre = serializers.SerializerMethodField(read_only=True)
-    evidencias          = EvidenciaAvanceListSerializer(many=True, read_only=True)
+    evidencias          = EvidenciaListSerializer(many=True, read_only=True)
 
     class Meta:
         model  = Avance
@@ -190,10 +190,11 @@ class AvanceCreateUpdateSerializer(serializers.ModelSerializer):
     # ------------------------------------------------------------------
 
     def _handle_evidencia(self, avance, archivo, titulo, descripcion, user):
-        """Crea el registro EvidenciaAvance si se recibió un archivo."""
+        """Crea el registro Evidencia si se recibió un archivo."""
         if archivo:
-            EvidenciaAvance.objects.create(
+            Evidencia.objects.create(
                 avance=avance,
+                tipo=Evidencia.TipoChoices.DOCUMENTO,
                 titulo=titulo or archivo.name,
                 descripcion=descripcion or '',
                 archivo=archivo,
