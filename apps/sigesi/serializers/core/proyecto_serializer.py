@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth import get_user_model
-from apps.sigesi.models import Proyecto, Semillero, LineaInvestigacion, ProyectoEstudiante
+from apps.sigesi.models import Proyecto, Semillero, LineaInvestigacion
 
 User = get_user_model()
 
@@ -80,21 +80,14 @@ class ProyectoCreateUpdateSerializer(serializers.ModelSerializer):
         if semilleros:
             proyecto.semilleros.set(semilleros)
         if estudiantes:
-            for est in estudiantes:
-                ProyectoEstudiante.objects.get_or_create(proyecto=proyecto, estudiante=est)
+            proyecto.estudiantes.set(estudiantes)
             
         if user and user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
-            ProyectoEstudiante.objects.get_or_create(
-                proyecto=proyecto, 
-                estudiante=user, 
-                defaults={'rol_en_proyecto': ProyectoEstudiante.RolProyectoChoices.INVESTIGADOR}
-            )
+            proyecto.estudiantes.add(user)
 
         return proyecto
 
     def update(self, instance, validated_data):
-        # Evitar fallos si envían estudiantes en un update (deben usar el endpoint de participaciones)
-        validated_data.pop('estudiantes', None)
         request = self.context.get('request')
         user = request.user if request else None
 

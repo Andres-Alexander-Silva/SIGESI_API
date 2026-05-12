@@ -1,14 +1,15 @@
 import logging
+import resend
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
-from django.utils.html import strip_tags
 
 logger = logging.getLogger(__name__)
+
+resend.api_key = settings.RESEND_API_KEY
 
 
 def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
     """
-    Envía un correo de recuperación de contraseña usando SMTP (django.core.mail).
+    Envía un correo de recuperación de contraseña usando Resend.
 
     Args:
         destinatario_email: Email institucional del usuario
@@ -16,7 +17,7 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
         token: Token JWT de recuperación (20 min de vida)
 
     Returns:
-        dict | None: Diccionario de confirmación o None si falla
+        dict | None: Respuesta de Resend con el ID del email, o None si falla
     """
     enlace = f"{settings.FRONTEND_URL}/recovery-password/{token}"
 
@@ -51,7 +52,7 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
                                     Hola, {destinatario_nombre}
                                 </h2>
                                 <p style="margin: 0 0 24px; color: #C8102E; font-size: 15px; line-height: 1.6;">
-                                    Recibimos una solicitud para restablecer la contraseña de tu cuenta.
+                                    Recibimos una solicitud para restablecer la contraseña de tu cuenta. 
                                     Haz clic en el siguiente botón para crear una nueva contraseña:
                                 </p>
 
@@ -59,7 +60,7 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
                                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                                     <tr>
                                         <td align="center" style="padding: 8px 0 32px;">
-                                            <a href="{enlace}"
+                                            <a href="{enlace}" 
                                                target="_blank"
                                                style="display: inline-block; background: linear-gradient(135deg, rgb(200, 16, 46) 0%, rgb(160, 13, 36) 100%); color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(26, 115, 232, 0.35);">
                                                 Restablecer Contraseña
@@ -80,7 +81,7 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
                                 </table>
 
                                 <p style="margin: 24px 0 0; color: #C8102E; font-size: 13px; line-height: 1.6;">
-                                    Si no solicitaste este cambio, puedes ignorar este correo.
+                                    Si no solicitaste este cambio, puedes ignorar este correo. 
                                     Tu contraseña actual permanecerá sin cambios.
                                 </p>
                             </td>
@@ -103,16 +104,15 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
     </html>
     """
 
-    subject = "SIGESI - Recuperación de contraseña"
-    from_email = settings.DEFAULT_FROM_EMAIL
-    text_content = strip_tags(html_content)
-
     try:
-        msg = EmailMultiAlternatives(subject, text_content, from_email, [destinatario_email])
-        msg.attach_alternative(html_content, "text/html")
-        msg.send(fail_silently=False)
-        logger.info("Correo de recuperación enviado a %s", destinatario_email)
-        return {"status": "sent"}
+        result = resend.Emails.send({
+            "from": settings.RESEND_FROM_EMAIL,
+            "to": [destinatario_email],
+            "subject": "SIGESI - Recuperación de contraseña",
+            "html": html_content,
+        })
+        logger.info("Correo de recuperación enviado a %s (id: %s)", destinatario_email, result.get('id'))
+        return result
     except Exception as e:
         logger.error("Error al enviar correo de recuperación a %s: %s", destinatario_email, str(e))
         return None
