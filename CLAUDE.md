@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SIGESI API — Django REST Framework backend for the *Plataforma Estratégica de Gestión y Fortalecimiento de Semilleros de Investigación* (research-seedbed management system). Spanish-language domain (models, fields, messages, comments are all in Spanish — keep that convention).
 
-Stack: Django 6 + DRF, PostgreSQL, SimpleJWT, Django Channels + Redis (websockets), Daphne (ASGI), Resend (email), drf-yasg (Swagger). Configured for deployment on Render.
+Stack: Django 6 + DRF, PostgreSQL, SimpleJWT, Django Channels + Redis (websockets), Daphne (ASGI), SMTP via `django.core.mail` (email), drf-yasg (Swagger). Configured for deployment on Render.
 
 ## Common commands
 
@@ -31,7 +31,7 @@ python manage.py shell
 
 There is no test suite, lint config, or pre-commit setup in the repo. `build.sh` is the Render build hook (pip install + collectstatic).
 
-Environment is read via `python-decouple` from a `.env` file at the repo root. Required: `SECRET_KEY`, `DB_*`. Optional: `DEBUG`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `REDIS_HOST`/`REDIS_PORT` (local) or `REDIS_URL` (Render, with `RENDER=true`), `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `FRONTEND_URL`. Redis is required for the websocket layer — if it's down, `/ws/permisos/` connections fail.
+Environment is read via `python-decouple` from a `.env` file at the repo root. Required: `SECRET_KEY`, `DB_*`. Optional: `DEBUG`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `REDIS_HOST`/`REDIS_PORT` (local) or `REDIS_URL` (Render, with `RENDER=true`), `EMAIL_HOST`/`EMAIL_PORT`/`EMAIL_USE_TLS`/`EMAIL_HOST_USER`/`EMAIL_HOST_PASSWORD`/`DEFAULT_FROM_EMAIL`, `FRONTEND_URL`. Redis is required for the websocket layer — if it's down, `/ws/permisos/` connections fail.
 
 API base: `/api/v1/`. Docs: `/swagger/`, `/redoc/`. Admin: `/panel_admin_sigesi_api/`.
 

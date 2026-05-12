@@ -41,7 +41,7 @@ class RecuperacionView(APIView):
                 # Se añade un claim personalizado para identificar que es un token de recuperación
                 token['token_type'] = 'password_recovery'
                 
-                # Enviar correo de recuperación con Resend
+                # Enviar correo de recuperación
                 enviar_correo_recuperacion(
                     destinatario_email=user.email,
                     destinatario_nombre=user.get_full_name(),
