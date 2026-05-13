@@ -1,15 +1,14 @@
 import logging
-import resend
 from django.conf import settings
+from django.core.mail import EmailMultiAlternatives
+from django.utils.html import strip_tags
 
 logger = logging.getLogger(__name__)
-
-resend.api_key = settings.RESEND_API_KEY
 
 
 def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
     """
-    Envía un correo de recuperación de contraseña usando Resend.
+    Envía un correo de recuperación de contraseña usando SMTP (django.core.mail).
 
     Args:
         destinatario_email: Email institucional del usuario
@@ -17,7 +16,7 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
         token: Token JWT de recuperación (20 min de vida)
 
     Returns:
-        dict | None: Respuesta de Resend con el ID del email, o None si falla
+        dict | None: Diccionario de confirmación o None si falla
     """
     enlace = f"{settings.FRONTEND_URL}/recovery-password/{token}"
 
@@ -104,15 +103,16 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
     </html>
     """
 
+    subject = "SIGESI - Recuperación de contraseña"
+    from_email = settings.DEFAULT_FROM_EMAIL
+    text_content = strip_tags(html_content)
+
     try:
-        result = resend.Emails.send({
-            "from": settings.RESEND_FROM_EMAIL,
-            "to": [destinatario_email],
-            "subject": "SIGESI - Recuperación de contraseña",
-            "html": html_content,
-        })
-        logger.info("Correo de recuperación enviado a %s (id: %s)", destinatario_email, result.get('id'))
-        return result
+        msg = EmailMultiAlternatives(subject, text_content, from_email, [destinatario_email])
+        msg.attach_alternative(html_content, "text/html")
+        msg.send(fail_silently=False)
+        logger.info("Correo de recuperación enviado a %s", destinatario_email)
+        return {"status": "sent"}
     except Exception as e:
         logger.error("Error al enviar correo de recuperación a %s: %s", destinatario_email, str(e))
         return None
