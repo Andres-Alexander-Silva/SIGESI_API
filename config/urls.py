@@ -35,6 +35,8 @@ urlpatterns = [
     path('api/v1/core/', include('apps.sigesi.routers.core.actividades_urls')),
     # Inscripciones
     path('api/v1/core/', include('apps.sigesi.routers.core.inscripciones_urls')),
+    # Dashboard
+    path('api/v1/core/', include('apps.sigesi.routers.core.dashboard_urls')),
     # Swagger / Documentación
     path('swagger/', schema_view.with_ui('swagger',
          cache_timeout=0), name='schema-swagger-ui'),
