@@ -548,6 +548,44 @@ class Proyecto(models.Model):
         return self.titulo
 
 
+class EvaluacionProyecto(models.Model):
+    """Evaluación académica de un proyecto."""
+
+    proyecto = models.ForeignKey(
+        Proyecto,
+        on_delete=models.CASCADE,
+        related_name='evaluaciones_proyecto',
+        verbose_name='Proyecto'
+    )
+    evaluador = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='evaluaciones_proyecto_realizadas',
+        verbose_name='Evaluador'
+    )
+    calificacion = models.DecimalField(
+        max_digits=3, decimal_places=1, verbose_name='Calificación'
+    )
+    estado_proyecto = models.CharField(
+        max_length=20,
+        choices=Proyecto.EstadoChoices.choices,
+        verbose_name='Estado del proyecto'
+    )
+    observaciones = models.TextField(verbose_name='Observaciones')
+    recomendaciones = models.TextField(blank=True, verbose_name='Recomendaciones')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Evaluación de Proyecto'
+        verbose_name_plural = 'Evaluaciones de Proyectos'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Evaluación de {self.proyecto.titulo} por {self.evaluador}"
+
+
 class FaseProyecto(models.Model):
     """Etapa del ciclo de vida del proyecto."""
 
