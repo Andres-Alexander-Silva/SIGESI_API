@@ -263,6 +263,59 @@ class ActividadRolePermission(BasePermission):
         return False
 
 
+class CronogramaProyectoRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Cronogramas de Proyecto.
+    - Estudiante: Solo lectura.
+    - Administrador, Director (Grupo/Semillero), Líder Estudiantil: Acceso total (CRUD).
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        if user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.LIDER_ESTUDIANTIL,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+            User.RolChoices.DIRECTOR_GRUPO
+        ]):
+            return True
+
+        if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+            return request.method in SAFE_METHODS
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+            return request.method in SAFE_METHODS
+
+        if user.tiene_rol(User.RolChoices.LIDER_ESTUDIANTIL):
+            if obj.proyecto.lider == user:
+                return True
+            return request.method in SAFE_METHODS
+
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            if obj.proyecto.director == user or obj.proyecto.semilleros.filter(director=user).exists():
+                return True
+            return request.method in SAFE_METHODS
+
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+            if obj.proyecto.semilleros.filter(grupo_investigacion__director=user).exists():
+                return True
+            return request.method in SAFE_METHODS
+
+        return False
+
+
 class EvidenciaRolePermission(BasePermission):
     """
     Control de acceso a nivel de vista y objeto para Evidencias.
