@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth import get_user_model
 from apps.sigesi.models import Proyecto, Semillero, LineaInvestigacion
+from apps.sigesi.utils.aval import validar_semilleros_avalados
 
 User = get_user_model()
 
@@ -59,6 +60,18 @@ class ProyectoCreateUpdateSerializer(serializers.ModelSerializer):
             'semilleros', 'linea_investigacion', 'director', 'lider', 'estudiantes',
             'estado', 'fecha_inicio', 'fecha_fin_estimada', 'fecha_cierre', 'is_active'
         ]
+
+    def validate(self, data):
+        request = self.context.get('request')
+        user = request.user if request else None
+
+        semilleros = data.get('semilleros')
+        if semilleros is None and self.instance:
+            semilleros = list(self.instance.semilleros.all())
+        if semilleros:
+            validar_semilleros_avalados(list(semilleros), user, field_name='semilleros')
+
+        return data
 
     def create(self, validated_data):
         request = self.context.get('request')

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from apps.sigesi.models import CronogramaProyecto
+from apps.sigesi.utils.aval import validar_semilleros_avalados
 
 
 class CronogramaProyectoListSerializer(serializers.ModelSerializer):
@@ -49,5 +50,14 @@ class CronogramaProyectoCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "fecha_entrega": "La fecha de entrega no puede ser anterior a la fecha de inicio."
             })
+
+        # Aval gate: el proyecto debe enlazar solo semilleros con aval aprobado.
+        proyecto = data.get('proyecto') or (self.instance.proyecto if self.instance else None)
+        if proyecto:
+            request = self.context.get('request')
+            user = request.user if request else None
+            validar_semilleros_avalados(
+                list(proyecto.semilleros.all()), user, field_name='proyecto'
+            )
 
         return data

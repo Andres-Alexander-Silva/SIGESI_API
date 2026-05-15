@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from apps.sigesi.models import Actividad
+from apps.sigesi.utils.aval import validar_semilleros_avalados
 
 class ActividadListSerializer(serializers.ModelSerializer):
     """
@@ -58,5 +59,14 @@ class ActividadCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "porcentaje_avance": "El porcentaje de avance debe estar entre 0 y 100."
             })
+
+        # Aval gate: el proyecto debe enlazar solo semilleros con aval aprobado.
+        proyecto = data.get('proyecto') or (self.instance.proyecto if self.instance else None)
+        if proyecto:
+            request = self.context.get('request')
+            user = request.user if request else None
+            validar_semilleros_avalados(
+                list(proyecto.semilleros.all()), user, field_name='proyecto'
+            )
 
         return data

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from apps.sigesi.models import MatriculaSemillero, Semillero
+from apps.sigesi.utils.aval import validar_semilleros_avalados
 
 User = get_user_model()
 
@@ -116,5 +117,8 @@ class InscripcionCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'semillero': 'Solo puede inscribir estudiantes en semilleros que usted dirige.'
                 })
+
+        # --- Validar aval del semillero ---
+        validar_semilleros_avalados([semillero], user, field_name='semillero')
 
         return attrs
