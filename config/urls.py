@@ -33,6 +33,7 @@ urlpatterns = [
     # Proyectos
     path('api/v1/core/', include('apps.sigesi.routers.core.proyectos_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.actividades_urls')),
+    path('api/v1/core/', include('apps.sigesi.routers.core.cronograma_proyecto_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.avances_urls')),
     # Inscripciones
     path('api/v1/core/', include('apps.sigesi.routers.core.inscripciones_urls')),
