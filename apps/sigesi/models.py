@@ -548,6 +548,44 @@ class Proyecto(models.Model):
         return self.titulo
 
 
+class EvaluacionProyecto(models.Model):
+    """Evaluación académica de un proyecto."""
+
+    proyecto = models.ForeignKey(
+        Proyecto,
+        on_delete=models.CASCADE,
+        related_name='evaluaciones_proyecto',
+        verbose_name='Proyecto'
+    )
+    evaluador = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='evaluaciones_proyecto_realizadas',
+        verbose_name='Evaluador'
+    )
+    calificacion = models.DecimalField(
+        max_digits=3, decimal_places=1, verbose_name='Calificación'
+    )
+    estado_proyecto = models.CharField(
+        max_length=20,
+        choices=Proyecto.EstadoChoices.choices,
+        verbose_name='Estado del proyecto'
+    )
+    observaciones = models.TextField(verbose_name='Observaciones')
+    recomendaciones = models.TextField(blank=True, verbose_name='Recomendaciones')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Evaluación de Proyecto'
+        verbose_name_plural = 'Evaluaciones de Proyectos'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Evaluación de {self.proyecto.titulo} por {self.evaluador}"
+
+
 class FaseProyecto(models.Model):
     """Etapa del ciclo de vida del proyecto."""
 
@@ -730,6 +768,52 @@ class Actividad(models.Model):
 
     def __str__(self):
         return self.titulo
+
+
+class CronogramaProyecto(models.Model):
+    """Entrada de cronograma para un proyecto, con su archivo opcional."""
+
+    class EstadoChoices(models.TextChoices):
+        PENDIENTE = 'pendiente', 'Pendiente'
+        EN_PROGRESO = 'en_progreso', 'En Progreso'
+        COMPLETADA = 'completada', 'Completada'
+        CANCELADA = 'cancelada', 'Cancelada'
+        ATRASADA = 'atrasada', 'Atrasada'
+
+    proyecto = models.ForeignKey(
+        Proyecto,
+        on_delete=models.CASCADE,
+        related_name='cronogramas',
+        verbose_name='Proyecto'
+    )
+    actividad = models.CharField(max_length=300, verbose_name='Actividad')
+    descripcion_actividad = models.TextField(verbose_name='Descripción de la actividad')
+    fecha_inicio = models.DateField(verbose_name='Fecha de inicio')
+    fecha_fin = models.DateField(verbose_name='Fecha de fin')
+    fecha_entrega = models.DateField(verbose_name='Fecha de entrega')
+    estado_actividad = models.CharField(
+        max_length=20,
+        choices=EstadoChoices.choices,
+        default=EstadoChoices.PENDIENTE,
+        verbose_name='Estado de la actividad'
+    )
+    archivo_cronograma = models.FileField(
+        upload_to='cronogramas_proyecto/%Y/%m/',
+        blank=True,
+        null=True,
+        verbose_name='Archivo del cronograma'
+    )
+    observaciones = models.TextField(blank=True, verbose_name='Observaciones')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Cronograma de Proyecto'
+        verbose_name_plural = 'Cronogramas de Proyecto'
+        ordering = ['proyecto', 'fecha_inicio']
+
+    def __str__(self):
+        return f"{self.actividad} - {self.proyecto.titulo}"
 
 
 class Evidencia(models.Model):
