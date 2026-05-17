@@ -6,7 +6,7 @@ class UserSimpleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'nombre_completo', 'rol']
+        fields = ['id', 'username', 'email', 'nombre_completo', 'roles']
 
     def get_nombre_completo(self, obj):
         return f"{obj.first_name} {obj.last_name}".strip() or obj.username
