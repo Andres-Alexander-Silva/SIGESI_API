@@ -263,6 +263,22 @@ class ActividadRolePermission(BasePermission):
         return False
 
 
+class AdminOrReadOnlyPermission(BasePermission):
+    """
+    Acceso de solo lectura para cualquier usuario autenticado.
+    Operaciones de escritura (POST, PUT, PATCH, DELETE) reservadas al Administrador.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.method in SAFE_METHODS:
+            return True
+
+        return request.user.tiene_rol(User.RolChoices.ADMINISTRADOR)
+
+
 class CronogramaProyectoRolePermission(BasePermission):
     """
     Control de acceso a nivel de vista y objeto para Cronogramas de Proyecto.

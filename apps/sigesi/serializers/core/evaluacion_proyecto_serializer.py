@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from apps.sigesi.models import EvaluacionProyecto, Proyecto
+from apps.sigesi.utils.aval import validar_semilleros_avalados
 
 class EvaluacionProyectoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -42,16 +43,22 @@ class EvaluacionProyectoSerializer(serializers.ModelSerializer):
 
         if not proyecto.is_active:
             raise serializers.ValidationError("No se puede evaluar un proyecto inactivo.")
-            
+
         request = self.context.get('request')
-        if request and request.user:
-            user = request.user
+        user = request.user if request else None
+
+        # Aval gate: los semilleros del proyecto deben estar avalados.
+        validar_semilleros_avalados(
+            list(proyecto.semilleros.all()), user, field_name='proyecto'
+        )
+
+        if user:
             if getattr(user, 'rol', None) == 'admin':
                 return attrs
-            
+
             is_director_proyecto = (proyecto.director == user)
             is_director_semillero = proyecto.semilleros.filter(director=user).exists()
-            
+
             if not (is_director_proyecto or is_director_semillero):
                 raise serializers.ValidationError("No tiene relación académica válida para evaluar este proyecto.")
 

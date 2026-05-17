@@ -14,6 +14,7 @@ class SemilleroListSerializer(serializers.ModelSerializer):
     director_nombre = serializers.SerializerMethodField()
     lider_estudiantil_nombre = serializers.SerializerMethodField()
     lineas_investigacion_nombres = serializers.SerializerMethodField()
+    usuario_aprobacion_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = Semillero
@@ -22,6 +23,8 @@ class SemilleroListSerializer(serializers.ModelSerializer):
             'fecha_creacion', 'grupo_investigacion', 'grupo_investigacion_nombre',
             'director', 'director_nombre', 'lider_estudiantil', 'lider_estudiantil_nombre',
             'lineas_investigacion', 'lineas_investigacion_nombres', 'logo',
+            'archivo_aval', 'tipo_documento', 'numero_acta', 'fecha_aprobacion',
+            'estado_aval', 'observaciones', 'usuario_aprobacion', 'usuario_aprobacion_nombre',
             'is_active', 'created_at', 'updated_at'
         ]
 
@@ -37,6 +40,39 @@ class SemilleroListSerializer(serializers.ModelSerializer):
         
     def get_lineas_investigacion_nombres(self, obj):
         return [linea.nombre for linea in obj.lineas_investigacion.all()]
+
+    def get_usuario_aprobacion_nombre(self, obj):
+        if obj.usuario_aprobacion:
+            return obj.usuario_aprobacion.get_full_name()
+        return None
+
+
+class SemilleroAvalSerializer(serializers.ModelSerializer):
+    """Serializer para gestionar el aval institucional del Semillero (admin only)."""
+
+    class Meta:
+        model = Semillero
+        fields = [
+            'archivo_aval', 'tipo_documento', 'numero_acta',
+            'fecha_aprobacion', 'estado_aval', 'observaciones',
+        ]
+
+    def validate(self, data):
+        nuevo_estado = data.get('estado_aval') or (
+            self.instance.estado_aval if self.instance else None
+        )
+        if nuevo_estado == Semillero.EstadoAvalChoices.APROBADO:
+            tipo = data.get('tipo_documento') or (
+                self.instance.tipo_documento if self.instance else None
+            )
+            numero = data.get('numero_acta') or (
+                self.instance.numero_acta if self.instance else None
+            )
+            if not tipo or not numero:
+                raise serializers.ValidationError(
+                    "Para aprobar el aval se requieren 'tipo_documento' y 'numero_acta'."
+                )
+        return data
 
 
 class SemilleroCreateUpdateSerializer(serializers.ModelSerializer):

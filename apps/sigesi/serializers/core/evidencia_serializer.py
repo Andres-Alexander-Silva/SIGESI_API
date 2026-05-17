@@ -1,6 +1,7 @@
 import os
 from rest_framework import serializers
 from apps.sigesi.models import Evidencia, Actividad
+from apps.sigesi.utils.aval import validar_semilleros_avalados
 from django.core.exceptions import ValidationError
 
 class EvidenciaSerializer(serializers.ModelSerializer):
@@ -52,5 +53,14 @@ class EvidenciaSerializer(serializers.ModelSerializer):
              
         if not self.instance and not data.get('descripcion'):
              raise serializers.ValidationError({"descripcion": "La descripción es obligatoria."})
-             
+
+        # Aval gate: la actividad debe estar en un proyecto cuyos semilleros estén avalados.
+        actividad = data.get('actividad') or (self.instance.actividad if self.instance else None)
+        if actividad and actividad.proyecto:
+            request = self.context.get('request')
+            user = request.user if request else None
+            validar_semilleros_avalados(
+                list(actividad.proyecto.semilleros.all()), user, field_name='actividad'
+            )
+
         return data

@@ -276,6 +276,51 @@ class Semillero(models.Model):
     )
     logo = models.ImageField(
         upload_to='semilleros/logos/', blank=True, null=True, verbose_name='Logo')
+
+    # --- Aval institucional ---
+    class TipoDocumentoChoices(models.TextChoices):
+        ACTA = 'acta', 'Acta'
+        RESOLUCION = 'resolucion', 'Resolución'
+        OFICIO = 'oficio', 'Oficio'
+        CERTIFICADO = 'certificado', 'Certificado'
+
+    class EstadoAvalChoices(models.TextChoices):
+        SIN_APROBAR = 'sin_aprobar', 'Sin Aprobar'
+        EN_PROCESO = 'en_proceso', 'En Proceso'
+        APROBADO = 'aprobado', 'Aprobado'
+        RECHAZADO = 'rechazado', 'Rechazado'
+
+    archivo_aval = models.FileField(
+        upload_to='semilleros/avales/%Y/%m/',
+        blank=True, null=True,
+        verbose_name='Archivo del aval'
+    )
+    tipo_documento = models.CharField(
+        max_length=20,
+        choices=TipoDocumentoChoices.choices,
+        blank=True,
+        verbose_name='Tipo de documento'
+    )
+    numero_acta = models.CharField(
+        max_length=50, blank=True, verbose_name='Número de acta')
+    fecha_aprobacion = models.DateField(
+        null=True, blank=True, verbose_name='Fecha de aprobación')
+    estado_aval = models.CharField(
+        max_length=20,
+        choices=EstadoAvalChoices.choices,
+        default=EstadoAvalChoices.SIN_APROBAR,
+        verbose_name='Estado del aval'
+    )
+    observaciones = models.TextField(
+        blank=True, verbose_name='Observaciones del aval')
+    usuario_aprobacion = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='semilleros_avalados',
+        verbose_name='Usuario que aprobó'
+    )
+
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
