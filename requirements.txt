@@ -34,6 +34,9 @@ pyasn1_modules==0.4.2
 pycparser==3.0
 PyJWT==2.12.1
 pyOpenSSL==26.0.0
+pytest==8.3.4
+pytest-cov==5.0.0
+pytest-django==4.9.0
 python-decouple==3.8
 pytz==2026.1.post1
 PyYAML==6.0.3
