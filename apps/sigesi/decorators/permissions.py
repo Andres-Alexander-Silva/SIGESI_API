@@ -263,6 +263,45 @@ class ActividadRolePermission(BasePermission):
         return False
 
 
+class ProduccionAcademicaRolePermission(BasePermission):
+    """
+    Producción Académica:
+    - Administrador: CRUD total.
+    - Director/Líder del proyecto vinculado: CRUD sobre las producciones de ese proyecto.
+    - Cualquier otro usuario autenticado: solo lectura.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if request.method in SAFE_METHODS:
+            return True
+
+        # POST y métodos a nivel detalle se filtran después:
+        # - POST: se valida en la vista (create override) contra validated_data['proyecto'].
+        # - PATCH/PUT/DELETE: se filtran en has_object_permission contra obj.proyecto.
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if request.method in SAFE_METHODS:
+            return True
+
+        proyecto = obj.proyecto
+        if proyecto and (proyecto.director_id == user.id or proyecto.lider_id == user.id):
+            return True
+
+        return False
+
+
 class AdminOrReadOnlyPermission(BasePermission):
     """
     Acceso de solo lectura para cualquier usuario autenticado.

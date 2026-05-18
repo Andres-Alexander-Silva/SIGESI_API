@@ -35,11 +35,13 @@ urlpatterns = [
     path('api/v1/core/', include('apps.sigesi.routers.core.proyectos_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.actividades_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.cronograma_proyecto_urls')),
+    path('api/v1/core/', include('apps.sigesi.routers.core.producciones_academicas_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.avances_urls')),
     # Inscripciones
     path('api/v1/core/', include('apps.sigesi.routers.core.inscripciones_urls')),
     # Dashboard
     path('api/v1/core/', include('apps.sigesi.routers.core.dashboard_urls')),
+    path('api/v1/core/', include('apps.sigesi.routers.core.proyecto_metrics_urls')),
     path('api/v1/reportes/', include('apps.sigesi.routers.reports.reportes_urls')),
     # Swagger / Documentación
     path('swagger/', schema_view.with_ui('swagger',
