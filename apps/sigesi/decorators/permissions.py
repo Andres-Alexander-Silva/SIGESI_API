@@ -263,6 +263,19 @@ class ActividadRolePermission(BasePermission):
         return False
 
 
+class ExportarReportesPermission(BasePermission):
+    """Solo Admin, Director de Grupo y Director de Semillero pueden exportar reportes."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+        ])
+
+
 class ProduccionAcademicaRolePermission(BasePermission):
     """
     Producción Académica:

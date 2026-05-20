@@ -15,17 +15,10 @@ class RecuperacionRequestSerializer(serializers.Serializer):
         }
     )
 
-    def validate_email(self, value):
-        # Verificar si el usuario existe y está activo
-        user = User.objects.filter(email=value).first()
-        
-        if not user:
-            raise serializers.ValidationError("No existe un usuario con este correo institucional.")
-        
-        if not user.is_active:
-            raise serializers.ValidationError("La cuenta asociada a este correo se encuentra inactiva.")
-            
-        return value
+    # NOTA: deliberadamente no validamos aquí si el usuario existe ni si está
+    # activo. La vista responde de forma genérica para evitar enumeración de
+    # correos (ver RecuperacionView.post). Cualquier filtrado real ocurre en
+    # la vista al decidir si enviar el correo.
 
 class SetPasswordSerializer(serializers.Serializer):
     token = serializers.CharField(

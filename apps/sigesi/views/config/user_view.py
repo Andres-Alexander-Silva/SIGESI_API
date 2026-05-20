@@ -333,6 +333,34 @@ class UserViewSet(viewsets.ModelViewSet):
         menus_data = [m for m in serializer.data if m['opciones']]
         return Response({'rol': rol_param or user.roles, 'menus': menus_data})
 
+    @swagger_auto_schema(
+        method='get',
+        operation_summary="Obtener formato de registro de estudiantes",
+        operation_description="Descarga el archivo plantilla Excel (.xlsx) para la carga masiva de estudiantes.",
+        responses={
+            200: openapi.Response("Archivo Excel de plantilla", schema=openapi.Schema(type=openapi.TYPE_FILE)),
+            404: openapi.Response("Archivo no encontrado"),
+        },
+        tags=["Usuarios"],
+    )
+    @action(detail=False, methods=['get'], url_path='bulk-upload/formato',
+            permission_classes=[IsAuthenticated])
+    def bulk_upload_formato(self, request):
+        import os
+        from django.http import FileResponse, Http404
+        from django.conf import settings
+
+        file_path = os.path.join(settings.BASE_DIR, 'FORMATO DE REGISTRO DE ESTUDIANTES.xlsx')
+        if not os.path.exists(file_path):
+            raise Http404("El archivo de formato no se encuentra en el servidor.")
+
+        response = FileResponse(
+            open(file_path, 'rb'),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="FORMATO_DE_REGISTRO_DE_ESTUDIANTES.xlsx"'
+        return response
+
     # --------------------------------------------------- carga masiva
     @swagger_auto_schema(
         method='post',

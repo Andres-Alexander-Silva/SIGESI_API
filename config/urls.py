@@ -31,6 +31,10 @@ urlpatterns = [
     path('api/v1/config/', include('apps.sigesi.routers.config.rbac_urls')),
     path('api/v1/config/', include('apps.sigesi.routers.config.users_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.semilleros_urls')),
+    # Dashboards — must come BEFORE proyectos_urls so /proyectos/metricas-dashboard/
+    # is not shadowed by ProyectoViewSet's detail route /proyectos/{pk}/.
+    path('api/v1/core/', include('apps.sigesi.routers.core.dashboard_urls')),
+    path('api/v1/core/', include('apps.sigesi.routers.core.proyecto_metrics_urls')),
     # Proyectos
     path('api/v1/core/', include('apps.sigesi.routers.core.proyectos_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.actividades_urls')),
@@ -39,10 +43,8 @@ urlpatterns = [
     path('api/v1/core/', include('apps.sigesi.routers.core.avances_urls')),
     # Inscripciones
     path('api/v1/core/', include('apps.sigesi.routers.core.inscripciones_urls')),
-    # Dashboard
-    path('api/v1/core/', include('apps.sigesi.routers.core.dashboard_urls')),
-    path('api/v1/core/', include('apps.sigesi.routers.core.proyecto_metrics_urls')),
     path('api/v1/reportes/', include('apps.sigesi.routers.reports.reportes_urls')),
+    path('api/v1/reportes/exportar/', include('apps.sigesi.routers.reports.export_urls')),
     # Swagger / Documentación
     path('swagger/', schema_view.with_ui('swagger',
          cache_timeout=0), name='schema-swagger-ui'),

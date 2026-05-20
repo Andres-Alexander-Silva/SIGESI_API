@@ -184,6 +184,8 @@ class LineaInvestigacion(models.Model):
 
     nombre = models.CharField(max_length=200, verbose_name='Nombre')
     descripcion = models.TextField(blank=True, verbose_name='Descripción')
+    mision = models.TextField(blank=True, verbose_name='Misión')
+    vision = models.TextField(blank=True, verbose_name='Visión')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
