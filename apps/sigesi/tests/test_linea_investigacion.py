@@ -15,9 +15,14 @@ def test_authenticated_user_can_create_linea(auth_client, director_semillero):
     resp = client.post(URL, {
         'nombre': 'Robótica',
         'descripcion': 'Aplicada',
+        'mision': 'Desarrollar prototipos robóticos innovadores.',
+        'vision': 'Ser líderes nacionales en investigación de robótica aplicada.',
         'is_active': True,
     }, format='json')
     assert resp.status_code == 201, resp.content
+    data = resp.json()
+    assert data['mision'] == 'Desarrollar prototipos robóticos innovadores.'
+    assert data['vision'] == 'Ser líderes nacionales en investigación de robótica aplicada.'
 
 
 @pytest.mark.django_db
