@@ -1,9 +1,67 @@
 import logging
+import threading
+from smtplib import SMTPException
+
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.utils.html import strip_tags
 
 logger = logging.getLogger(__name__)
+
+
+def _enviar_en_hilo(destinatario_email, destinatario_nombre, token):
+    """Lanza el envío SMTP en un hilo daemon y retorna de inmediato."""
+    hilo = threading.Thread(
+        target=enviar_correo_recuperacion,
+        args=(destinatario_email, destinatario_nombre, token),
+        name=f"recuperacion-email-{destinatario_email}",
+        daemon=True,
+    )
+    hilo.start()
+    logger.info("Envío de correo de recuperación despachado en hilo para %s", destinatario_email)
+    return None
+
+
+def enviar_correo_recuperacion_async(destinatario_email, destinatario_nombre, token):
+    """Despacha el envío del correo de recuperación sin bloquear la respuesta.
+
+    La estrategia la decide ``settings.EMAIL_DELIVERY``:
+
+    - ``'celery'``: encola una tarea en el worker Celery (durable, con
+      reintentos). Si el broker (Redis) está caído, hace *fallback* a un hilo
+      para no reintroducir el bloqueo de la petición.
+    - ``'thread'``: hilo daemon en segundo plano (sin infraestructura extra).
+    - ``'sync'``: ejecuta el envío en línea y retorna su resultado (tests).
+
+    Retorna ``None`` cuando el envío se delegó (celery/thread), o el dict de
+    resultado de :func:`enviar_correo_recuperacion` cuando fue síncrono.
+    """
+    estrategia = getattr(settings, "EMAIL_DELIVERY", "thread")
+
+    if estrategia == "sync":
+        return enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token)
+
+    if estrategia == "celery":
+        # Import local: evita acoplar este módulo (y los tests que lo importan
+        # directamente) al arranque de Celery.
+        from kombu.exceptions import OperationalError
+        from apps.sigesi.tasks import enviar_correo_recuperacion_task
+        try:
+            enviar_correo_recuperacion_task.delay(
+                destinatario_email, destinatario_nombre, token
+            )
+            logger.info("Envío de correo de recuperación encolado en Celery para %s", destinatario_email)
+            return None
+        except OperationalError as e:
+            # Broker inaccesible: no podemos colgar la petición, usamos un hilo.
+            logger.error(
+                "Broker Celery inaccesible (%s); fallback a hilo para %s",
+                e, destinatario_email,
+            )
+            return _enviar_en_hilo(destinatario_email, destinatario_nombre, token)
+
+    # 'thread' (por defecto)
+    return _enviar_en_hilo(destinatario_email, destinatario_nombre, token)
 
 
 def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
@@ -16,7 +74,11 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
         token: Token JWT de recuperación (20 min de vida)
 
     Returns:
-        dict | None: Diccionario de confirmación o None si falla
+        dict: ``{"status": "sent"}`` si el envío fue aceptado por el servidor
+        SMTP, o ``{"status": "error", "error_type": ..., "detail": ...}`` si
+        falló. NOTA: "sent" significa que el servidor SMTP (Gmail) aceptó el
+        mensaje, no que el destinatario lo haya recibido — la entrega final
+        puede fallar por filtrado/cuarentena del lado del receptor.
     """
     enlace = f"{settings.FRONTEND_URL}/recovery-password/{token}"
 
@@ -107,12 +169,38 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
     from_email = settings.DEFAULT_FROM_EMAIL
     text_content = strip_tags(html_content)
 
+    # Cabeceras que reducen la clasificación como spam y dan una vía de
+    # respuesta legítima (relevante para la entrega en buzones institucionales).
+    headers = {
+        "Reply-To": from_email,
+        "List-Unsubscribe": f"<mailto:{settings.EMAIL_HOST_USER}>",
+    }
+
     try:
-        msg = EmailMultiAlternatives(subject, text_content, from_email, [destinatario_email])
+        msg = EmailMultiAlternatives(
+            subject, text_content, from_email, [destinatario_email], headers=headers
+        )
         msg.attach_alternative(html_content, "text/html")
         msg.send(fail_silently=False)
-        logger.info("Correo de recuperación enviado a %s", destinatario_email)
+        logger.info("Correo de recuperación aceptado por el servidor SMTP para %s", destinatario_email)
         return {"status": "sent"}
+    except SMTPException as e:
+        # El servidor SMTP rechazó el mensaje: registrar código y respuesta.
+        smtp_code = getattr(e, "smtp_code", None)
+        smtp_error = getattr(e, "smtp_error", None)
+        logger.error(
+            "El servidor SMTP rechazó el correo de recuperación para %s [%s] code=%s reply=%s",
+            destinatario_email, type(e).__name__, smtp_code, smtp_error,
+        )
+        return {
+            "status": "error",
+            "error_type": type(e).__name__,
+            "smtp_code": smtp_code,
+            "detail": str(smtp_error or e),
+        }
     except Exception as e:
-        logger.error("Error al enviar correo de recuperación a %s: %s", destinatario_email, str(e))
-        return None
+        logger.error(
+            "Error al enviar correo de recuperación a %s [%s]: %s",
+            destinatario_email, type(e).__name__, str(e),
+        )
+        return {"status": "error", "error_type": type(e).__name__, "detail": str(e)}

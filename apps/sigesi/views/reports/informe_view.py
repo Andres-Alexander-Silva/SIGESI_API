@@ -44,6 +44,9 @@ class InformeViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = super().get_queryset()
 
+        if not user or not user.is_authenticated:
+            return qs.none()
+
         if user.tiene_rol(User.RolChoices.ADMINISTRADOR) or user.tiene_rol(User.RolChoices.DIRECTOR_PROGRAMA):
             return qs
 
