@@ -65,6 +65,7 @@ class InscripcionCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = MatriculaSemillero
         fields = ['estudiante', 'semillero', 'semestre']
+        validators = []
 
     def validate(self, attrs):
         request = self.context.get('request')
@@ -82,6 +83,12 @@ class InscripcionCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'estudiante': 'Debe indicar el estudiante a inscribir.'
                 })
+
+        # --- Si el usuario es estudiante, no puede inscribir a otra persona ---
+        if user.tiene_rol(User.RolChoices.ESTUDIANTE) and estudiante != user:
+            raise serializers.ValidationError({
+                'estudiante': 'Un estudiante solo puede inscribirse a sí mismo.'
+            })
 
         # --- Validar que el usuario a inscribir tenga rol estudiante ---
         if not estudiante.tiene_rol(User.RolChoices.ESTUDIANTE):
