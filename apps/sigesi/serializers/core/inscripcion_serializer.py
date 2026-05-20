@@ -85,7 +85,7 @@ class InscripcionCreateSerializer(serializers.ModelSerializer):
                 })
 
         # --- Si el usuario es estudiante, no puede inscribir a otra persona ---
-        if user.tiene_rol(User.RolChoices.ESTUDIANTE) and estudiante != user:
+        if user.tiene_rol(User.RolChoices.ESTUDIANTE) and estudiante.id != user.id:
             raise serializers.ValidationError({
                 'estudiante': 'Un estudiante solo puede inscribirse a sí mismo.'
             })
@@ -119,8 +119,9 @@ class InscripcionCreateSerializer(serializers.ModelSerializer):
 
         # --- Validar alcance del Director de Semillero ---
         if (user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO)
-                and not user.tiene_rol(User.RolChoices.ADMINISTRADOR)):
-            if semillero.director != user:
+                and not user.tiene_rol(User.RolChoices.ADMINISTRADOR)
+                and estudiante.id != user.id):
+            if semillero.director_id != user.id:
                 raise serializers.ValidationError({
                     'semillero': 'Solo puede inscribir estudiantes en semilleros que usted dirige.'
                 })

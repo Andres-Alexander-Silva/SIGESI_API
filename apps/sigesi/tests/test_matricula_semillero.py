@@ -121,3 +121,77 @@ def test_director_can_enroll_student_in_their_semillero(
     assert resp.status_code == 201, resp.content
     assert resp.json()['data']['estudiante'] == estudiante.id
     assert resp.json()['data']['semillero'] == semillero_aprobado.id
+
+
+@pytest.mark.django_db
+def test_multi_role_user_with_student_and_director_can_self_enroll(
+    auth_client, semillero_aprobado
+):
+    """A user who has both 'director_semillero' and 'estudiante' roles can successfully
+    self-enroll in a semillero they do not direct.
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    # Create user with both roles
+    multi_role_user = User.objects.create(
+        username='multirole1',
+        cedula='CC999999',
+        correo_personal='multirole1@example.com',
+        email='multirole1@inst.edu',
+        first_name='Multi',
+        last_name='Role',
+        roles=['director_semillero', 'estudiante'],
+        is_active=True
+    )
+    multi_role_user.set_password('x')
+    multi_role_user.save()
+
+    # Ensure the semillero is directed by someone else
+    assert semillero_aprobado.director != multi_role_user
+
+    client = auth_client(multi_role_user)
+    resp = client.post(URL, {
+        'semillero': semillero_aprobado.id,
+        'semestre': '2025-1',
+    }, format='json')
+    
+    assert resp.status_code == 201, resp.content
+    assert resp.json()['data']['estudiante'] == multi_role_user.id
+
+
+@pytest.mark.django_db
+def test_multi_role_user_with_student_and_director_can_self_enroll_with_explicit_id(
+    auth_client, semillero_aprobado
+):
+    """A user who has both 'director_semillero' and 'estudiante' roles can successfully
+    self-enroll in a semillero they do not direct, even when passing their own ID explicitly.
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    # Create user with both roles
+    multi_role_user = User.objects.create(
+        username='multirole2',
+        cedula='CC999998',
+        correo_personal='multirole2@example.com',
+        email='multirole2@inst.edu',
+        first_name='Multi',
+        last_name='Role Two',
+        roles=['director_semillero', 'estudiante'],
+        is_active=True
+    )
+    multi_role_user.set_password('x')
+    multi_role_user.save()
+
+    # Ensure the semillero is directed by someone else
+    assert semillero_aprobado.director != multi_role_user
+
+    client = auth_client(multi_role_user)
+    resp = client.post(URL, {
+        'estudiante': multi_role_user.id,
+        'semillero': semillero_aprobado.id,
+        'semestre': '2025-1',
+    }, format='json')
+    
+    assert resp.status_code == 201, resp.content
+    assert resp.json()['data']['estudiante'] == multi_role_user.id
+
