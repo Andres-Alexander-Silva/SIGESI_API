@@ -87,6 +87,8 @@ class ActividadViewSet(viewsets.ModelViewSet):
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
+        if not request.data.get('porcentaje_avance'):
+            request.data['porcentaje_avance'] = 0
         serializer.is_valid(raise_exception=True)
         actividad = serializer.save()
         return Response(

@@ -27,6 +27,9 @@ class InscripcionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
+        if not user or not user.is_authenticated:
+            return MatriculaSemillero.objects.none()
+
         # Filtrado de queryset según rol
         if user.tiene_alguno_de([User.RolChoices.ADMINISTRADOR, User.RolChoices.DIRECTOR_GRUPO]):
             qs = MatriculaSemillero.objects.all()

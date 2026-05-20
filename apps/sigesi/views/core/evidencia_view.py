@@ -94,6 +94,9 @@ class EvidenciaViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = Evidencia.objects.all().select_related('actividad', 'actividad__proyecto', 'subido_por')
 
+        if not user or not user.is_authenticated:
+            return qs.none()
+
         if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return qs
 

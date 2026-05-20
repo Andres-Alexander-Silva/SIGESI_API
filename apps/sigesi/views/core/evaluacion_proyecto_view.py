@@ -62,6 +62,9 @@ class EvaluacionProyectoViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = EvaluacionProyecto.objects.all().select_related('proyecto', 'evaluador')
 
+        if not user or not user.is_authenticated:
+            return qs.none()
+
         if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return qs
 

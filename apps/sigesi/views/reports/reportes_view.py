@@ -29,6 +29,9 @@ class ReporteAcademicoProyectoList(generics.ListAPIView):
             'estudiantes', 'actividades', 'producciones'
         )
 
+        if not user or not user.is_authenticated:
+            return qs.none()
+
         if not user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             if user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DOCENTE]):
                 qs = qs.filter(Q(director=user) | Q(semilleros__director=user)).distinct()
@@ -71,6 +74,9 @@ class ReporteGlobalSemilleroList(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         qs = Semillero.objects.select_related('director')
+
+        if not user or not user.is_authenticated:
+            return qs.none()
 
         if not user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             if user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DOCENTE]):

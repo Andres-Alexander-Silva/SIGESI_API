@@ -10,7 +10,7 @@ from apps.sigesi.serializers.auth.recuperacion_serializer import (
     RecuperacionRequestSerializer,
     SetPasswordSerializer
 )
-from apps.sigesi.utils.email_service import enviar_correo_recuperacion
+from apps.sigesi.utils.email_service import enviar_correo_recuperacion_async
 
 User = get_user_model()
 
@@ -28,25 +28,51 @@ class RecuperacionView(APIView):
         tags=['Auth']
     )
     def post(self, request):
+        from django.db.models import Q
+        import logging
+        logger = logging.getLogger(__name__)
+
         serializer = RecuperacionRequestSerializer(data=request.data)
         if serializer.is_valid():
-            email = serializer.validated_data['email']
-            user = User.objects.filter(email=email).first()
+            email = serializer.validated_data['email'].strip()
+            logger.info(f"Solicitud de recuperación de contraseña recibida para: '{email}'")
 
-            if user and user.is_active:
-                # Crear un token stateless válido por 20 minutos
-                token = AccessToken.for_user(user)
-                token.set_exp(lifetime=timedelta(minutes=20))
-                
-                # Se añade un claim personalizado para identificar que es un token de recuperación
-                token['token_type'] = 'password_recovery'
-                
-                # Enviar correo de recuperación
-                enviar_correo_recuperacion(
-                    destinatario_email=user.email,
-                    destinatario_nombre=user.get_full_name(),
-                    token=str(token)
-                )
+            user = User.objects.filter(
+                Q(email__iexact=email) | Q(correo_personal__iexact=email)
+            ).first()
+
+            if user:
+                logger.info(f"Usuario encontrado: {user.username} (activo={user.is_active})")
+                if user.is_active:
+                    # Crear un token stateless válido por 20 minutos
+                    token = AccessToken.for_user(user)
+                    token.set_exp(lifetime=timedelta(minutes=20))
+                    
+                    # Se añade un claim personalizado para identificar que es un token de recuperación
+                    token['token_type'] = 'password_recovery'
+                    
+                    # Determinar el email al que enviar el correo (preferir el institucional si existe)
+                    destinatario_email = user.email or user.correo_personal
+                    
+                    logger.info(f"Enviando correo de recuperación a: {destinatario_email}")
+                    # Enviar correo de recuperación
+                    # Despacho en segundo plano: el envío SMTP no bloquea la
+                    # respuesta. El resultado se registra dentro del hilo; aquí
+                    # solo lo evaluamos cuando el envío fue síncrono (res != None).
+                    res = enviar_correo_recuperacion_async(
+                        destinatario_email=destinatario_email,
+                        destinatario_nombre=user.get_full_name(),
+                        token=str(token)
+                    )
+                    if res is not None and res.get("status") != "sent":
+                        logger.error(
+                            "Fallo al enviar correo de recuperación a %s: %s",
+                            destinatario_email, res,
+                        )
+                else:
+                    logger.warning(f"El usuario {user.username} no está activo.")
+            else:
+                logger.warning(f"No se encontró ningún usuario con el email '{email}' en la base de datos.")
 
             # Respuesta genérica — no revela si el email existe o no (previene enumeración)
             return Response(

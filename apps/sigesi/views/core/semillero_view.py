@@ -164,7 +164,7 @@ class SemilleroViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=['get', 'patch'],
         url_path='aval',
-        parser_classes=[MultiPartParser, FormParser, JSONParser],
+        parser_classes=[MultiPartParser, FormParser],
     )
     def aval(self, request, pk=None):
         semillero = self.get_object()
@@ -187,6 +187,11 @@ class SemilleroViewSet(viewsets.ModelViewSet):
             == Semillero.EstadoAvalChoices.APROBADO
         )
         was_aprobado = semillero.estado_aval == Semillero.EstadoAvalChoices.APROBADO
+
+        # Limpieza de archivo anterior para evitar archivos huérfanos
+        nuevo_archivo = serializer.validated_data.get('archivo_aval')
+        if nuevo_archivo and semillero.archivo_aval:
+            semillero.archivo_aval.delete(save=False)
 
         serializer.save()
 

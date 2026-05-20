@@ -57,6 +57,19 @@ class SemilleroAvalSerializer(serializers.ModelSerializer):
             'fecha_aprobacion', 'estado_aval', 'observaciones',
         ]
 
+    def validate_archivo_aval(self, value):
+        if value:
+            import os
+            ext = os.path.splitext(value.name)[1].lower()
+            if ext != '.pdf':
+                raise serializers.ValidationError("El archivo del aval debe ser un documento PDF (.pdf).")
+            
+            # Limitar el tamaño a 5 MB
+            max_size = 5 * 1024 * 1024
+            if value.size > max_size:
+                raise serializers.ValidationError("El tamaño del archivo no puede exceder los 5 MB.")
+        return value
+
     def validate(self, data):
         nuevo_estado = data.get('estado_aval') or (
             self.instance.estado_aval if self.instance else None
@@ -71,6 +84,15 @@ class SemilleroAvalSerializer(serializers.ModelSerializer):
             if not tipo or not numero:
                 raise serializers.ValidationError(
                     "Para aprobar el aval se requieren 'tipo_documento' y 'numero_acta'."
+                )
+            
+            # Verificar que exista un archivo de aval cargado
+            archivo = data.get('archivo_aval') or (
+                self.instance.archivo_aval if self.instance else None
+            )
+            if not archivo:
+                raise serializers.ValidationError(
+                    "Para aprobar el aval es obligatorio cargar el documento digital ('archivo_aval')."
                 )
         return data
 

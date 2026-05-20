@@ -202,31 +202,25 @@ CORS_ALLOWED_ORIGINS = config(
 # ============================================
 # CHANNELS Y WEBSOCKETS
 # ============================================
+# URL única de Redis, reutilizada por Channels y Celery para que nunca
+# diverjan. En Render se provee REDIS_URL; en local se compone desde
+# REDIS_HOST/REDIS_PORT (la base 0 es la convención por defecto).
 if RENDER:
-    # En Render, usar la URL de Redis directamente
-    CHANNEL_LAYERS = {
-        'default': {
-            'BACKEND': 'channels_redis.core.RedisChannelLayer',
-            'CONFIG': {
-                'hosts': [config('REDIS_URL', default='redis://127.0.0.1:6379')],
-            },
-        },
-    }
+    REDIS_URL = config('REDIS_URL', default='redis://127.0.0.1:6379/0')
 else:
-    # En desarrollo local
-    CHANNEL_LAYERS = {
-        'default': {
-            'BACKEND': 'channels_redis.core.RedisChannelLayer',
-            'CONFIG': {
-                'hosts': [
-                    (
-                        config('REDIS_HOST', default='127.0.0.1'),
-                        int(config('REDIS_PORT', default='6379'))
-                    )
-                ],
-            },
+    REDIS_URL = config(
+        'REDIS_URL',
+        default=f"redis://{config('REDIS_HOST', default='127.0.0.1')}:{config('REDIS_PORT', default='6379')}/0",
+    )
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [REDIS_URL],
         },
-    }
+    },
+}
 
 # ============================================
 # MODELO DE USUARIO PERSONALIZADO
@@ -289,6 +283,31 @@ EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='SIGESI <noreply@sigesi.com>')
+# Sin timeout, smtplib espera indefinidamente si el host SMTP no responde
+# (puerto bloqueado en producción) y la petición HTTP nunca termina.
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=15, cast=int)
+# Estrategia de envío del correo (ver apps/sigesi/utils/email_service.py):
+#   'celery' -> tarea en el worker Celery (durable, con reintentos)  [producción]
+#   'thread' -> hilo en segundo plano, sin infraestructura extra     [local]
+#   'sync'   -> en línea dentro de la petición                       [tests]
+EMAIL_DELIVERY = config('EMAIL_DELIVERY', default='thread')
+
+# ============================================
+# CELERY (cola de tareas asíncronas)
+# ============================================
+# Reutiliza la misma instancia de Redis que Channels (ver REDIS_URL arriba).
+# Solo broker: el correo es "fire-and-forget", no necesitamos backend de
+# resultados.
+CELERY_BROKER_URL = REDIS_URL
+CELERY_TASK_IGNORE_RESULT = True
+# Reintenta la conexión al broker al arrancar el worker (evita fallo si Redis
+# tarda en estar disponible en el deploy).
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+# No bloquear si el broker está caído al encolar: el dispatcher hace fallback.
+CELERY_BROKER_TRANSPORT_OPTIONS = {'socket_connect_timeout': 5}
+# En tests, ejecuta las tareas en línea (sin worker ni broker).
+CELERY_TASK_ALWAYS_EAGER = config('CELERY_TASK_ALWAYS_EAGER', default=False, cast=bool)
+CELERY_TASK_EAGER_PROPAGATES = True
 
 # ============================================
 # FRONTEND

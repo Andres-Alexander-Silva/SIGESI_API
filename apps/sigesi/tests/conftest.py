@@ -18,6 +18,18 @@ from apps.sigesi.models import (
 User = get_user_model()
 
 
+@pytest.fixture(autouse=True)
+def _envio_correo_sincrono(settings):
+    """Fuerza el envío de correo síncrono y las tareas Celery en línea.
+
+    En producción el correo se delega (hilo o Celery), lo que haría no
+    determinista la verificación de ``mail.outbox``. Aquí forzamos el envío
+    dentro de la petición y la ejecución eager de Celery.
+    """
+    settings.EMAIL_DELIVERY = 'sync'
+    settings.CELERY_TASK_ALWAYS_EAGER = True
+
+
 # ---------------------------------------------------------------------------
 # Users — one per role. Password is always 'x' so login tests can use it.
 # ---------------------------------------------------------------------------
