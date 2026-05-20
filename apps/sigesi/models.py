@@ -122,6 +122,10 @@ class User(AbstractUser):
     def save(self, *args, **kwargs):
         if self.is_graduated:
             self.email = None
+        # Invariante: todo líder estudiantil es también estudiante.
+        if (self.RolChoices.LIDER_ESTUDIANTIL in self.roles
+                and self.RolChoices.ESTUDIANTE not in self.roles):
+            self.roles = list(self.roles) + [self.RolChoices.ESTUDIANTE]
         super().save(*args, **kwargs)
 
     # ---- Helpers multi-rol ----

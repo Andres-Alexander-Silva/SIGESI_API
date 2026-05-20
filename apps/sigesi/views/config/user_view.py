@@ -388,8 +388,13 @@ class UserViewSet(viewsets.ModelViewSet):
         operation_summary="Carga masiva de usuarios",
         operation_description=(
             "Permite a un administrador registrar múltiples usuarios a partir de un archivo Excel (.xlsx). "
-            "Se requiere que la primera fila contenga los siguientes encabezados (insensibles a mayúsculas): "
-            "Username, Cédula, Nombres, Apellidos, Email Institucional, Correo Personal, Teléfono, Roles, Código, Programa Académico."
+            "La fila de encabezados se detecta automáticamente (puede haber un título u otras filas arriba) "
+            "y debe contener (insensible a mayúsculas/acentos): "
+            "Cédula, Nombres, Apellidos, Email Institucional, Correo Personal, Teléfono, Roles, "
+            "Código Estudiantil, Programa Académico. "
+            "El `username` se deriva del prefijo del correo institucional (p. ej. pepito@ufps.edu.co → pepito); "
+            "no se lee de una columna. El Programa Académico se compara sin distinción de mayúsculas "
+            "contra los programas existentes."
         ),
         request_body=UserBulkUploadSerializer,
         responses={
@@ -429,11 +434,9 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Extraer encabezados y mapear a índices
-        headers = [str(h).strip().lower() if h else '' for h in rows[0]]
-        
+        # Alias de encabezados aceptados por columna (comparados en minúsculas).
+        # 'username' no aparece: se deriva del prefijo del correo institucional.
         required_columns = {
-            'username': ['username', 'usuario'],
             'cedula': ['cedula', 'cédula', 'identificacion', 'identificación'],
             'nombres': ['nombres', 'nombre'],
             'apellidos': ['apellidos', 'apellido'],
@@ -442,22 +445,49 @@ class UserViewSet(viewsets.ModelViewSet):
             'telefono': ['telefono', 'teléfono', 'celular'],
             'roles': ['roles', 'rol'],
             'codigo': ['codigo', 'código', 'codigo estudiantil', 'código estudiantil'],
-            'programa_academico': ['programa academico', 'programa académico']
+            'programa_academico': ['programa academico', 'programa académico'],
         }
+        REQUIRED_KEYS = ['cedula', 'nombres', 'apellidos', 'email', 'correo_personal', 'roles', 'codigo']
 
+        def _match_indices(header_row):
+            """Mapea {clave: índice} para una fila candidata a encabezados."""
+            indices = {}
+            for col, cell in enumerate(header_row):
+                if cell is None:
+                    continue
+                norm = _cell_to_str(cell).strip().lower()
+                for key, aliases in required_columns.items():
+                    if key not in indices and norm in aliases:
+                        indices[key] = col
+            return indices
+
+        # Detectar la fila de encabezados: el archivo puede traer un título y/o
+        # filas combinadas/vacías por encima (caso de la plantilla oficial,
+        # cuyos encabezados están en la fila 3). Tomamos la primera fila que
+        # contenga 'cedula' y al menos 4 columnas reconocidas.
+        header_row_index = None
         col_indices = {}
-        for key, possible_names in required_columns.items():
-            found = False
-            for idx, header in enumerate(headers):
-                if header in possible_names:
-                    col_indices[key] = idx
-                    found = True
-                    break
-            if not found and key in ['cedula', 'nombres', 'apellidos', 'email', 'correo_personal', 'roles', 'codigo']:
-                return Response(
-                    {"error": f"No se encontró la columna obligatoria para '{key}'."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        for i, row in enumerate(rows):
+            candidate = _match_indices(row)
+            if 'cedula' in candidate and len(candidate) >= 4:
+                header_row_index = i
+                col_indices = candidate
+                break
+
+        if header_row_index is None:
+            return Response(
+                {"error": "No se encontró la fila de encabezados. Verifique que el archivo "
+                          "contenga las columnas: Cédula, Nombres, Apellidos, Email Institucional, "
+                          "Correo Personal, Roles, Código Estudiantil."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        faltantes = [k for k in REQUIRED_KEYS if k not in col_indices]
+        if faltantes:
+            return Response(
+                {"error": f"Faltan columnas obligatorias: {', '.join(faltantes)}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         creados = 0
         omitidos = 0
@@ -465,12 +495,30 @@ class UserViewSet(viewsets.ModelViewSet):
 
         cedulas_en_archivo = set()
         emails_en_archivo = set()
+        usernames_en_archivo = set()
 
         valid_users_data = []
 
-        programas_dict = {p.nombre.strip().lower(): p.id for p in ProgramaAcademico.objects.all()}
+        # Programas indexados por nombre y por código, en minúsculas, para una
+        # comparación insensible a mayúsculas/acentos del valor del archivo.
+        programas_dict = {}
+        for p in ProgramaAcademico.objects.all():
+            programas_dict[p.nombre.strip().lower()] = p.id
+            if p.codigo:
+                programas_dict[p.codigo.strip().lower()] = p.id
 
-        for row_idx, row in enumerate(rows[1:], start=2):
+        def _username_unico(base):
+            """Garantiza un username único frente al archivo y a la BD."""
+            candidato = base
+            n = 1
+            while (candidato in usernames_en_archivo
+                   or User.objects.filter(username=candidato).exists()):
+                candidato = f"{base}{n}"
+                n += 1
+            usernames_en_archivo.add(candidato)
+            return candidato
+
+        for row_idx, row in enumerate(rows[header_row_index + 1:], start=header_row_index + 2):
             if not any(row):
                 continue
 
@@ -483,7 +531,6 @@ class UserViewSet(viewsets.ModelViewSet):
                 return ''
 
             cedula = get_val('cedula', lower=True)
-            username = get_val('username', lower=True) or cedula
             nombres = get_val('nombres')
             apellidos = get_val('apellidos')
             email = get_val('email', lower=True)
@@ -493,13 +540,16 @@ class UserViewSet(viewsets.ModelViewSet):
             codigo = get_val('codigo', lower=True)
             prog_acad_str = get_val('programa_academico', lower=True)
 
-            if not cedula or not email or not nombres or not apellidos or not correo_personal or not username:
-                errores.append({"fila": row_idx, "error": "Faltan datos obligatorios (username, cédula, nombres, apellidos, email institucional o correo personal)."})
+            if not cedula or not email or not nombres or not apellidos or not correo_personal:
+                errores.append({"fila": row_idx, "error": "Faltan datos obligatorios (cédula, nombres, apellidos, email institucional o correo personal)."})
                 continue
 
             if not email.endswith('@ufps.edu.co'):
                 errores.append({"fila": row_idx, "error": f"El email {email} no pertenece al dominio @ufps.edu.co."})
                 continue
+
+            # El username se deriva del prefijo del correo institucional.
+            base_username = email.split('@')[0].strip().lower() or cedula
 
             if cedula in cedulas_en_archivo or email in emails_en_archivo:
                 errores.append({"fila": row_idx, "error": f"El usuario (cédula {cedula} o email {email}) está duplicado en el mismo archivo."})
@@ -540,7 +590,10 @@ class UserViewSet(viewsets.ModelViewSet):
 
             programa_academico_id = None
             if prog_acad_str:
-                programa_academico_id = programas_dict.get(prog_acad_str.lower())
+                programa_academico_id = programas_dict.get(prog_acad_str.strip().lower())
+
+            # Reservar el username (único) solo para usuarios que se crearán.
+            username = _username_unico(base_username)
 
             valid_users_data.append({
                 'username': username,

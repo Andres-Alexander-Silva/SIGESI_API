@@ -96,7 +96,12 @@ class InscripcionViewSet(viewsets.ModelViewSet):
             "- Si el usuario es **estudiante**, el campo `estudiante` es opcional "
             "(se auto-asigna al usuario autenticado).\n"
             "- Si el usuario es **director de semillero** o **administrador**, "
-            "debe enviar el campo `estudiante` con el ID del estudiante a inscribir."
+            "debe enviar el campo `estudiante` con el ID del estudiante a inscribir.\n\n"
+            "**Rol dentro del semillero** (`rol_en_semillero`): `estudiante` (por defecto) "
+            "o `lider_estudiantil`. Designar líder solo lo permite un administrador, el "
+            "director del semillero o un director de grupo. Al designar un nuevo líder, "
+            "este pasa a ser el `lider_estudiantil` del semillero (y gana ese rol global); "
+            "el líder anterior conserva su inscripción como estudiante."
         ),
         request_body=InscripcionCreateSerializer,
         responses={

@@ -124,6 +124,73 @@ def test_director_can_enroll_student_in_their_semillero(
 
 
 @pytest.mark.django_db
+def test_director_designates_new_lider_replaces_previous(
+    auth_client, director_semillero, estudiante, lider_estudiantil, semillero_aprobado
+):
+    """Designar un nuevo líder reasigna el FK del semillero; el anterior conserva
+    su matrícula y sus roles globales, pero deja de ser el líder del semillero."""
+    # El semillero ya tiene a `lider_estudiantil` como líder (fixture).
+    assert semillero_aprobado.lider_estudiantil == lider_estudiantil
+    assert semillero_aprobado.director == director_semillero
+
+    client = auth_client(director_semillero)
+    resp = client.post(URL, {
+        'estudiante': estudiante.id,
+        'semillero': semillero_aprobado.id,
+        'semestre': '2025-1',
+        'rol_en_semillero': 'lider_estudiantil',
+    }, format='json')
+    assert resp.status_code == 201, resp.content
+
+    semillero_aprobado.refresh_from_db()
+    estudiante.refresh_from_db()
+    lider_estudiantil.refresh_from_db()
+
+    # El nuevo líder del semillero es el estudiante recién inscrito.
+    assert semillero_aprobado.lider_estudiantil_id == estudiante.id
+    # Gana el rol global lider_estudiantil (y estudiante por el invariante).
+    assert 'lider_estudiantil' in estudiante.roles
+    assert 'estudiante' in estudiante.roles
+    # El líder anterior conserva sus roles globales (puede liderar otro semillero).
+    assert 'lider_estudiantil' in lider_estudiantil.roles
+    # La inscripción se refleja como líder en el serializer de lectura.
+    assert resp.json()['data']['rol_en_semillero'] == 'lider_estudiantil'
+
+
+@pytest.mark.django_db
+def test_estudiante_cannot_self_designate_as_lider(
+    auth_client, estudiante, semillero_aprobado
+):
+    """Un estudiante no puede autodesignarse líder del semillero."""
+    client = auth_client(estudiante)
+    resp = client.post(URL, {
+        'semillero': semillero_aprobado.id,
+        'semestre': '2025-1',
+        'rol_en_semillero': 'lider_estudiantil',
+    }, format='json')
+    assert resp.status_code == 400
+    assert 'rol_en_semillero' in resp.json()
+
+
+@pytest.mark.django_db
+def test_default_enrollment_keeps_existing_lider(
+    auth_client, director_semillero, estudiante, lider_estudiantil, semillero_aprobado
+):
+    """Inscribir con rol por defecto (estudiante) no cambia el líder del semillero."""
+    client = auth_client(director_semillero)
+    resp = client.post(URL, {
+        'estudiante': estudiante.id,
+        'semillero': semillero_aprobado.id,
+        'semestre': '2025-1',
+    }, format='json')
+    assert resp.status_code == 201, resp.content
+
+    semillero_aprobado.refresh_from_db()
+    assert semillero_aprobado.lider_estudiantil_id == lider_estudiantil.id
+    assert resp.json()['data']['rol_en_semillero'] == 'estudiante'
+
+
+@pytest.mark.django_db
 def test_multi_role_user_with_student_and_director_can_self_enroll(
     auth_client, semillero_aprobado
 ):
