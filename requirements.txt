@@ -27,6 +27,7 @@ djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
 drf-yasg==1.21.15
 et_xmlfile==2.0.0
+Faker==40.18.0
 gunicorn==25.3.0
 hyperlink==21.0.0
 idna==3.11

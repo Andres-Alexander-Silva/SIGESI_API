@@ -21,6 +21,27 @@ from apps.sigesi.utils.ordering import MultiFieldOrderingFilter
 from apps.sigesi.filters.user_filter import UserFilter
 
 
+def _cell_to_str(value):
+    """Normaliza el valor de una celda de Excel a texto.
+
+    openpyxl (con ``data_only=True``) devuelve los números tipados como ``int``
+    o ``float``; las cédulas/códigos/teléfonos largos llegan como ``float``
+    (p. ej. ``1090123456.0``), por lo que ``str()`` arrastraría el ``.0``.
+    Aquí los enteros se serializan sin decimales para no corromper el dato.
+    """
+    if isinstance(value, bool):  # bool es subclase de int: trátalo como texto plano
+        return str(value).strip()
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        # Cédulas/códigos son enteros: descarta la parte decimal espuria.
+        if value.is_integer():
+            return str(int(value))
+        # Defensivo: float no entero -> sin notación científica ni ceros sobrantes.
+        return format(value, 'f').rstrip('0').rstrip('.')
+    return str(value).strip()
+
+
 class UserViewSet(viewsets.ModelViewSet):
     """
     ViewSet CRUD para la gestión de usuarios del sistema.
@@ -457,7 +478,7 @@ class UserViewSet(viewsets.ModelViewSet):
             def get_val(key, lower=False):
                 idx = col_indices.get(key)
                 if idx is not None and idx < len(row) and row[idx] is not None:
-                    val = str(row[idx]).strip()
+                    val = _cell_to_str(row[idx]).strip()
                     return val.lower() if lower else val
                 return ''
 
