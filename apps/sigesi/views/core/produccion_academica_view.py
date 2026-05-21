@@ -10,10 +10,10 @@ from apps.sigesi.serializers.core.produccion_academica_serializer import (
     ProduccionAcademicaCreateUpdateSerializer,
 )
 from apps.sigesi.decorators.permissions import ProduccionAcademicaRolePermission
-from apps.sigesi.utils.download import ArchiveDownloadMixin
+from apps.sigesi.utils.download import ArchiveDownloadMixin, ArchiveUploadMixin
 
 
-class ProduccionAcademicaViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
+class ProduccionAcademicaViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewsets.ModelViewSet):
     """ViewSet CRUD para ProduccionAcademica.
 
     - Lectura (list/retrieve): cualquier usuario autenticado.
@@ -30,6 +30,7 @@ class ProduccionAcademicaViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
     permission_classes = [ProduccionAcademicaRolePermission]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     archive_fields = {'archivo': 'archivo', 'certificado': 'certificado'}
+    upload_serializer_class = ProduccionAcademicaCreateUpdateSerializer
 
     filterset_fields = ['proyecto', 'semillero', 'tipo', 'estado']
     search_fields = ['titulo', 'doi', 'revista_evento']

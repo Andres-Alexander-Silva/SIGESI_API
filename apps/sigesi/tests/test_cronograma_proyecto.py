@@ -25,6 +25,26 @@ def test_director_can_create_cronograma_row(auth_client, director_semillero, pro
 
 
 @pytest.mark.django_db
+def test_create_cronograma_with_archivo(auth_client, director_semillero, proyecto, settings, tmp_path):
+    """El POST acepta el archivo (archivo_cronograma) en multipart; es opcional."""
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    settings.MEDIA_ROOT = str(tmp_path)
+    client = auth_client(director_semillero)
+    resp = client.post(URL, {
+        'proyecto': proyecto.id,
+        'actividad': 'Diseño',
+        'descripcion_actividad': 'desc',
+        'fecha_inicio': str(date.today()),
+        'fecha_fin': str(date.today()),
+        'fecha_entrega': str(date.today()),
+        'estado_actividad': 'pendiente',
+        'archivo_cronograma': SimpleUploadedFile('crono.pdf', b'PDF', content_type='application/pdf'),
+    }, format='multipart')
+    assert resp.status_code == 201, resp.content
+    assert CronogramaProyecto.objects.latest('id').archivo_cronograma
+
+
+@pytest.mark.django_db
 def test_porcentaje_cumplimiento_returns_correct_ratio(
     auth_client, director_semillero, proyecto
 ):
