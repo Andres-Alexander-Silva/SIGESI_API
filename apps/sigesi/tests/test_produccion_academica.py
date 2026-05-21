@@ -29,6 +29,24 @@ def test_admin_can_create_produccion(
 
 
 @pytest.mark.django_db
+def test_create_produccion_with_archivo_y_certificado(
+    auth_client, admin_user, proyecto, semillero_aprobado, lider_estudiantil, settings, tmp_path
+):
+    """El POST acepta archivo y certificado en multipart (opcionales)."""
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from apps.sigesi.models import ProduccionAcademica
+    settings.MEDIA_ROOT = str(tmp_path)
+    client = auth_client(admin_user)
+    payload = _payload(proyecto, semillero_aprobado, lider_estudiantil)
+    payload['archivo'] = SimpleUploadedFile('a.pdf', b'ARCH', content_type='application/pdf')
+    payload['certificado'] = SimpleUploadedFile('c.pdf', b'CERT', content_type='application/pdf')
+    resp = client.post(URL, payload, format='multipart')
+    assert resp.status_code == 201, resp.content
+    pa = ProduccionAcademica.objects.latest('id')
+    assert pa.archivo and pa.certificado
+
+
+@pytest.mark.django_db
 def test_proyecto_director_can_create_for_their_project(
     auth_client, director_semillero, proyecto, semillero_aprobado, lider_estudiantil
 ):

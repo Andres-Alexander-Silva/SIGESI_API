@@ -26,6 +26,20 @@ def test_lider_can_upload_evidencia_on_aprobado_proyecto(
 
 
 @pytest.mark.django_db
+def test_evidencia_create_requires_archivo(auth_client, lider_estudiantil, actividad):
+    """El archivo es obligatorio al crear una evidencia (POST sin archivo → 400)."""
+    client = auth_client(lider_estudiantil)
+    resp = client.post(URL, {
+        'actividad': actividad.id,
+        'tipo': 'documento',
+        'titulo': 'Sin archivo',
+        'descripcion': 'Descripción suficiente.',
+    }, format='multipart')
+    assert resp.status_code == 400
+    assert 'archivo' in resp.json()
+
+
+@pytest.mark.django_db
 def test_evidencia_create_when_semillero_not_aprobado_returns_400(
     auth_client, director_semillero, semillero_sin_aprobar, lider_estudiantil
 ):

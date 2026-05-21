@@ -6,7 +6,6 @@ __pycache__
 .neodentalManageApi
 .idea
 db.sqlite3
-media
 *.DS_Store
 
 # Backup files #
