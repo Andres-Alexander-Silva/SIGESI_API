@@ -6,6 +6,7 @@ from django.db.models import Q
 import django_filters
 from apps.sigesi.models import Evidencia, User, Proyecto
 from apps.sigesi.serializers.core.evidencia_serializer import EvidenciaSerializer
+from apps.sigesi.utils.download import ArchiveDownloadMixin
 
 class EvidenciaPermission(permissions.BasePermission):
     """
@@ -54,12 +55,13 @@ class EvidenciaFilter(django_filters.FilterSet):
         fields = ['proyecto_id', 'usuario_id', 'estado', 'tipo']
 
 
-class EvidenciaViewSet(viewsets.ModelViewSet):
+class EvidenciaViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
     """
     ViewSet para manejar el CRUD de Evidencias (Avances).
     """
     serializer_class = EvidenciaSerializer
     permission_classes = [permissions.IsAuthenticated, EvidenciaPermission]
+    archive_field = 'archivo'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
     filterset_class = EvidenciaFilter

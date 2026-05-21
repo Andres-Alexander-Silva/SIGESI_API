@@ -12,9 +12,10 @@ from apps.sigesi.serializers.core.cronograma_proyecto_serializer import (
     CronogramaProyectoCreateUpdateSerializer,
 )
 from apps.sigesi.decorators.permissions import CronogramaProyectoRolePermission
+from apps.sigesi.utils.download import ArchiveDownloadMixin
 
 
-class CronogramaProyectoViewSet(viewsets.ModelViewSet):
+class CronogramaProyectoViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
     """ViewSet CRUD para los cronogramas de proyecto, con control de acceso por rol."""
 
     queryset = (
@@ -23,6 +24,7 @@ class CronogramaProyectoViewSet(viewsets.ModelViewSet):
         .order_by('proyecto', 'fecha_inicio')
     )
     permission_classes = [CronogramaProyectoRolePermission]
+    archive_field = 'archivo_cronograma'
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     filterset_fields = ['proyecto', 'estado_actividad']
 
