@@ -2,7 +2,7 @@ import openpyxl
 from django.db import transaction
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from django_filters.rest_framework import DjangoFilterBackend
@@ -14,11 +14,13 @@ from apps.sigesi.serializers.config.user_serializer import (
     UserCreateSerializer,
     UserUpdateSerializer,
     UserChangePasswordSerializer,
+    UserCorreoPersonalSerializer,
     MenuPerfilSerializer,
     UserBulkUploadSerializer,
 )
 from apps.sigesi.utils.ordering import MultiFieldOrderingFilter
 from apps.sigesi.filters.user_filter import UserFilter
+from apps.sigesi.decorators.permissions import UserManagementPermission
 
 
 def _cell_to_str(value):
@@ -56,7 +58,7 @@ class UserViewSet(viewsets.ModelViewSet):
     """
 
     queryset           = User.objects.all().select_related('programa_academico')
-    permission_classes = [IsAuthenticated]
+    permission_classes = [UserManagementPermission]
 
     # ---- Ordenamiento y filtros ----------------------------------------
     filter_backends  = [DjangoFilterBackend, MultiFieldOrderingFilter]
@@ -75,11 +77,6 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.action in ('update', 'partial_update'):
             return UserUpdateSerializer
         return UserSerializer
-
-    def get_permissions(self):
-        if self.action == 'create':
-            return [AllowAny()]
-        return [IsAuthenticated()]
 
     # ------------------------------------------------------------------ list
     @swagger_auto_schema(
@@ -128,7 +125,7 @@ class UserViewSet(viewsets.ModelViewSet):
     @swagger_auto_schema(
         operation_summary="Crear usuario",
         operation_description=(
-            "Registra un nuevo usuario en el sistema. "
+            "Registra un nuevo usuario en el sistema. **Solo el administrador** puede crear usuarios. "
             "La contraseña se encripta automáticamente usando `set_password` de Django (PBKDF2-SHA256). "
             "El correo debe pertenecer al dominio `@ufps.edu.co`."
         ),
@@ -136,6 +133,7 @@ class UserViewSet(viewsets.ModelViewSet):
         responses={
             201: UserSerializer,
             400: openapi.Response("Datos inválidos"),
+            403: openapi.Response("Solo el administrador puede crear usuarios"),
         },
         tags=["Usuarios"],
     )
@@ -220,6 +218,33 @@ class UserViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # --------------------------------------------------- mi correo personal
+    @swagger_auto_schema(
+        method='patch',
+        operation_summary="Actualizar mi correo personal",
+        operation_description=(
+            "Permite al usuario autenticado (de cualquier rol) actualizar únicamente "
+            "su propio correo personal. No requiere ser administrador y solo afecta "
+            "a la cuenta del usuario autenticado."
+        ),
+        request_body=UserCorreoPersonalSerializer,
+        responses={
+            200: UserSerializer,
+            400: openapi.Response("Correo inválido o ya registrado"),
+            401: openapi.Response("No autenticado"),
+        },
+        tags=["Usuarios"],
+    )
+    @action(detail=False, methods=['patch'], url_path='me/correo-personal',
+            permission_classes=[IsAuthenticated])
+    def correo_personal_propio(self, request):
+        serializer = UserCorreoPersonalSerializer(
+            request.user, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(UserSerializer(request.user).data)
 
     # --------------------------------------------------- cambiar contraseña
     @swagger_auto_schema(

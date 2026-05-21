@@ -13,6 +13,26 @@ def active_role(request):
     return token.get('role') if token is not None else None
 
 
+class UserManagementPermission(BasePermission):
+    """Permisos del endpoint /users/.
+
+    - Lectura (GET/HEAD/OPTIONS): cualquier usuario autenticado.
+    - Escritura (POST/PUT/PATCH/DELETE): solo el administrador.
+
+    La actualización del correo personal propio se expone como acción aparte con
+    su propio permiso (IsAuthenticated), por lo que no pasa por esta clase.
+    """
+    message = 'Solo el administrador puede gestionar usuarios.'
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        return user.tiene_rol(User.RolChoices.ADMINISTRADOR)
+
+
 class HasRolePermission(BasePermission):
     """Exige un rol activo válido en el access token.
 
