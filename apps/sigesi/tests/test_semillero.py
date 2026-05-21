@@ -235,3 +235,43 @@ def test_admin_aval_patch_overwrites_and_cleans_up_old_file(auth_client, admin_u
     new_file_path = semillero_sin_aprobar.archivo_aval.path
     if os.path.exists(new_file_path):
         os.remove(new_file_path)
+
+
+@pytest.mark.django_db
+def test_download_aval_archivo(auth_client, admin_user, semillero_aprobado):
+    """Descarga el archivo del aval como adjunto cuando existe."""
+    import os
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    semillero_aprobado.archivo_aval = SimpleUploadedFile(
+        "aval_descarga.pdf", b"%PDF-1.4 contenido aval", content_type="application/pdf")
+    semillero_aprobado.save()
+
+    client = auth_client(admin_user)
+    resp = client.get(f"{URL}{semillero_aprobado.id}/aval/download/")
+
+    assert resp.status_code == 200
+    assert resp.get('Content-Disposition', '').startswith('attachment;')
+    contenido = b"".join(resp.streaming_content)
+    assert contenido == b"%PDF-1.4 contenido aval"
+
+    # Limpieza
+    semillero_aprobado.refresh_from_db()
+    path = semillero_aprobado.archivo_aval.path
+    semillero_aprobado.archivo_aval.delete(save=True)
+    if os.path.exists(path):
+        os.remove(path)
+
+
+@pytest.mark.django_db
+def test_download_aval_sin_archivo_devuelve_404(auth_client, admin_user, semillero_aprobado):
+    """Si el semillero no tiene archivo de aval, retorna 404."""
+    client = auth_client(admin_user)
+    resp = client.get(f"{URL}{semillero_aprobado.id}/aval/download/")
+    assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+def test_download_aval_requiere_autenticacion(api_client, semillero_aprobado):
+    resp = api_client.get(f"{URL}{semillero_aprobado.id}/aval/download/")
+    assert resp.status_code == 401

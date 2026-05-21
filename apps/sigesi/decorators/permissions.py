@@ -1,6 +1,49 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from apps.sigesi.models import User, GrupoInvestigacion, Actividad
 
+
+def active_role(request):
+    """Rol activo embebido en el access token, o ``None``.
+
+    Lee el claim ``role`` del token validado (``request.auth``). Útil para que
+    las vistas / filtros de queryset razonen sobre el rol *seleccionado* en lugar
+    del conjunto completo de roles del usuario.
+    """
+    token = getattr(request, 'auth', None)
+    return token.get('role') if token is not None else None
+
+
+class HasRolePermission(BasePermission):
+    """Exige un rol activo válido en el access token.
+
+    - Rechaza el Identity JWT (``token_use == 'identity'``) y los tokens sin ``role``.
+    - Defensa en profundidad: el rol del token debe seguir asignado en la BD.
+    - Si la vista declara ``required_roles`` (lista de códigos), el rol activo
+      debe pertenecer a esa lista; si no la declara, basta con tener un rol válido.
+
+    Uso por vista::
+
+        class MiViewSet(viewsets.ModelViewSet):
+            permission_classes = [HasRolePermission]
+            required_roles = ['administrador', 'director_grupo']
+    """
+    message = 'Su rol activo no tiene acceso a este recurso.'
+
+    def has_permission(self, request, view):
+        token = getattr(request, 'auth', None)
+        if token is None or token.get('token_use') == 'identity':
+            return False
+
+        role = token.get('role')
+        user = getattr(request, 'user', None)
+        if not role or user is None or role not in getattr(user, 'roles', []):
+            return False
+
+        required = getattr(view, 'required_roles', None)
+        if required:
+            return role in required
+        return True
+
 class SemilleroRolePermission(BasePermission):
     """
     Control de acceso a nivel de vista y objeto para Semilleros.
