@@ -15,6 +15,7 @@ from apps.sigesi.serializers.auth.login_serializer import (
     LogoutRequestSerializer,
 )
 from apps.sigesi.middleware.authentication_middleware import JWTAuthentication
+from apps.sigesi.utils.tokens import IdentityToken, build_context_tokens, roles_payload
 
 User = get_user_model()
 
@@ -43,18 +44,37 @@ class LoginView(APIView):
             if not user.is_active:
                 return Response({"error": "Cuenta inactiva, contacta al administrador"}, status=status.HTTP_403_FORBIDDEN)
 
-            refresh = RefreshToken.for_user(user)
+            available = roles_payload(user)
 
+            # Auto-selección: con un único rol, emitimos directamente los tokens
+            # de contexto (no es necesario el paso /select-role/).
+            if len(user.roles) == 1:
+                refresh, access = build_context_tokens(user, user.roles[0])
+                return Response(
+                    {
+                        "usuarioId": user.id,
+                        "email": user.email,
+                        "names": user.get_full_name(),
+                        "role": user.roles[0],
+                        "available_roles": available,
+                        "token": str(access),
+                        "refreshToken": str(refresh),
+                        "response": "OK",
+                    },
+                    status=status.HTTP_200_OK
+                )
+
+            # Multi-rol (o sin rol): se entrega solo el Identity JWT; el cliente
+            # debe llamar a /select-role/ para obtener tokens de contexto.
+            identity = IdentityToken.for_user(user)
             return Response(
                 {
                     "usuarioId": user.id,
                     "email": user.email,
                     "names": user.get_full_name(),
-                    "roles": user.roles,
-                    "rolesDisplay": user.get_roles_display(),
-                    "token": str(refresh.access_token),
-                    "refreshToken": str(refresh),
-                    "response": "OK",
+                    "available_roles": available,
+                    "identityToken": str(identity),
+                    "response": "SELECT_ROLE",
                 },
                 status=status.HTTP_200_OK
             )

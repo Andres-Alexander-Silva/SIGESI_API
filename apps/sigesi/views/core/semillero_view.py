@@ -1,3 +1,6 @@
+import os
+
+from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -203,3 +206,33 @@ class SemilleroViewSet(viewsets.ModelViewSet):
             semillero.save(update_fields=['usuario_aprobacion', 'fecha_aprobacion'])
 
         return Response(SemilleroAvalSerializer(semillero).data, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        method='get',
+        operation_summary='Descargar archivo del aval',
+        operation_description=(
+            'Descarga el archivo del aval institucional (archivo_aval) del semillero '
+            'como adjunto. Retorna 404 si el semillero no tiene archivo de aval cargado.'
+        ),
+        responses={
+            200: openapi.Response('Archivo del aval', schema=openapi.Schema(type=openapi.TYPE_FILE)),
+            404: openapi.Response('El semillero no tiene archivo de aval'),
+        },
+        tags=['Semilleros'],
+    )
+    @action(detail=True, methods=['get'], url_path='aval/download')
+    def aval_download(self, request, pk=None):
+        semillero = self.get_object()
+
+        if not semillero.archivo_aval:
+            return Response(
+                {'error': 'El semillero no tiene un archivo de aval cargado.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        nombre_archivo = os.path.basename(semillero.archivo_aval.name)
+        return FileResponse(
+            semillero.archivo_aval.open('rb'),
+            as_attachment=True,
+            filename=nombre_archivo,
+        )

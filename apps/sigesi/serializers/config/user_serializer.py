@@ -170,6 +170,23 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
+class UserCorreoPersonalSerializer(serializers.ModelSerializer):
+    """Actualiza únicamente el correo personal del propio usuario."""
+
+    correo_personal = serializers.EmailField(
+        validators=[
+            UniqueValidator(
+                queryset=User.objects.all(),
+                message='Ya existe un usuario registrado con este correo personal.'
+            ),
+        ]
+    )
+
+    class Meta:
+        model = User
+        fields = ['correo_personal']
+
+
 class UserChangePasswordSerializer(serializers.Serializer):
     """Serializer para cambiar la contraseña de un usuario."""
 
