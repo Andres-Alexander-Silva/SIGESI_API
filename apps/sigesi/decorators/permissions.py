@@ -549,3 +549,85 @@ class PlanAccionRolePermission(BasePermission):
 
         # Resto de roles: solo lectura.
         return request.method in SAFE_METHODS
+
+
+class CronogramaRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Cronogramas.
+    - Administrador: Acceso total.
+    - Director de Grupo: Acceso total a los cronogramas de los semilleros de su grupo.
+    - Director de Semillero: Acceso total a los cronogramas de su propio semillero.
+    - Estudiante / Líder Estudiantil: Solo lectura.
+
+    El semillero se resuelve a través de ``cronograma.plan_accion.semillero``.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        if user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+        ]):
+            return True
+
+        # Estudiante / Líder Estudiantil: solo lectura.
+        return request.method in SAFE_METHODS
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        semillero = obj.plan_accion.semillero
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+            return semillero.grupo_investigacion.director == user
+
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            return semillero.director == user
+
+        # Resto de roles: solo lectura.
+        return request.method in SAFE_METHODS
+
+
+class ActividadCronogramaRolePermission(BasePermission):
+    """
+    Control de acceso para Actividades de Cronograma.
+    Misma política que :class:`CronogramaRolePermission`; el semillero se
+    resuelve a través de ``actividad.cronograma.plan_accion.semillero``.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        if user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+        ]):
+            return True
+
+        return request.method in SAFE_METHODS
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        semillero = obj.cronograma.plan_accion.semillero
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+            return semillero.grupo_investigacion.director == user
+
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            return semillero.director == user
+
+        return request.method in SAFE_METHODS

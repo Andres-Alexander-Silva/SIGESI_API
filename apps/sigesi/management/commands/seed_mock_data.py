@@ -27,7 +27,7 @@ from django.db import transaction
 from apps.sigesi.models import (
     ProgramaAcademico, LineaInvestigacion, Indicador, Convocatoria,
     GrupoInvestigacion, Semillero, MatriculaSemillero,
-    PlanEstrategico, PlanAccion, Cronograma,
+    PlanEstrategico, PlanAccion, Cronograma, ActividadCronograma,
     Proyecto, EvaluacionProyecto, FaseProyecto, HitoEntregable, Bitacora,
     Actividad, CronogramaProyecto, Evidencia, Alerta,
     CompetenciaInvestigativa, Rubrica, Evaluacion, PerfilInvestigativo,
@@ -55,6 +55,7 @@ DEFAULT_TARGETS = {
     'planes_estrategicos': 6,
     'planes_accion': 6,
     'cronogramas': 8,
+    'actividades_cronograma': 16,
     'proyectos': 8,
     'evaluaciones_proyecto': 5,
     'hitos': 8,
@@ -79,7 +80,7 @@ FLUSH_ORDER = [
     Evaluacion, Rubrica, CompetenciaInvestigativa, PerfilInvestigativo,
     Informe, Alerta, Evidencia, CronogramaProyecto, Actividad, Bitacora,
     HitoEntregable, FaseProyecto, EvaluacionProyecto, Proyecto,
-    Cronograma, PlanAccion, PlanEstrategico, MatriculaSemillero,
+    ActividadCronograma, Cronograma, PlanAccion, PlanEstrategico, MatriculaSemillero,
     Semillero, GrupoInvestigacion, LineaInvestigacion, ProgramaAcademico,
     Indicador, Convocatoria,
 ]
@@ -378,7 +379,6 @@ class Command(BaseCommand):
             ini = self._rand_date()
             return Cronograma.objects.create(
                 plan_accion=random.choice(planes_accion),
-                actividad=self.fake.sentence(nb_words=5)[:300],
                 descripcion=self.fake.paragraph(),
                 responsable=random.choice(responsables) if responsables else None,
                 fecha_inicio=ini,
@@ -386,6 +386,27 @@ class Command(BaseCommand):
                 cumplido=random.choice([True, False]),
             )
         self._topup('cronogramas', Cronograma, cron_factory)
+
+        cronogramas = list(Cronograma.objects.all())
+
+        def actcron_factory(i):
+            if not cronogramas:
+                return None
+            ini = self._rand_date()
+            fin_estimada = ini + timedelta(days=random.randint(15, 120))
+            cumplida = random.choice([True, False])
+            return ActividadCronograma.objects.create(
+                cronograma=random.choice(cronogramas),
+                titulo=self.fake.sentence(nb_words=5)[:300],
+                descripcion=self.fake.paragraph(),
+                responsable=random.choice(responsables) if responsables else None,
+                objetivo_general=self.fake.sentence(),
+                objetivos_especificos=self.fake.paragraph(),
+                fecha_inicio=ini,
+                fecha_fin_estimada=fin_estimada,
+                fecha_fin=fin_estimada if cumplida else None,
+            )
+        self._topup('actividades_cronograma', ActividadCronograma, actcron_factory)
 
     # ---- 5. proyectos ----
     def _seed_proyectos(self):

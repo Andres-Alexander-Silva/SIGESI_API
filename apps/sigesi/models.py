@@ -495,7 +495,6 @@ class Cronograma(models.Model):
         related_name='cronogramas',
         verbose_name='Plan de acción'
     )
-    actividad = models.CharField(max_length=300, verbose_name='Actividad')
     descripcion = models.TextField(blank=True, verbose_name='Descripción')
     responsable = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -516,7 +515,45 @@ class Cronograma(models.Model):
         ordering = ['fecha_inicio']
 
     def __str__(self):
-        return f"{self.actividad} ({self.fecha_inicio} - {self.fecha_fin})"
+        return f"Cronograma #{self.pk} - {self.plan_accion} ({self.fecha_inicio} - {self.fecha_fin})"
+
+
+class ActividadCronograma(models.Model):
+    """Actividad concreta dentro de un Cronograma (relación uno-a-muchos)."""
+
+    cronograma = models.ForeignKey(
+        Cronograma,
+        on_delete=models.CASCADE,
+        related_name='actividades',
+        verbose_name='Cronograma'
+    )
+    titulo = models.CharField(max_length=300, verbose_name='Título')
+    descripcion = models.TextField(blank=True, verbose_name='Descripción')
+    responsable = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='actividades_cronograma',
+        verbose_name='Responsable'
+    )
+    objetivo_general = models.TextField(blank=True, verbose_name='Objetivo general')
+    objetivos_especificos = models.TextField(
+        blank=True, verbose_name='Objetivos específicos')
+    fecha_inicio = models.DateField(verbose_name='Fecha de inicio')
+    fecha_fin_estimada = models.DateField(verbose_name='Fecha de fin estimada')
+    fecha_fin = models.DateField(
+        null=True, blank=True, verbose_name='Fecha de fin')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Actividad de Cronograma'
+        verbose_name_plural = 'Actividades de Cronograma'
+        ordering = ['fecha_inicio']
+
+    def __str__(self):
+        return f"{self.titulo} (Cronograma #{self.cronograma_id})"
 
 
 # ============================================================
