@@ -505,3 +505,47 @@ class EvidenciaRolePermission(BasePermission):
                    obj.actividad.proyecto.semilleros.filter(lider_estudiantil=user).exists()
 
         return False
+
+
+class PlanAccionRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Planes de Acción.
+    - Administrador: Acceso total.
+    - Director de Grupo: Acceso total a los planes de los semilleros de su grupo.
+    - Director de Semillero: Acceso total a los planes de su propio semillero.
+    - Estudiante / Líder Estudiantil: Solo lectura.
+
+    La aprobación (acción ``aprobar``) está restringida a Administrador y
+    Director de Grupo; ese chequeo adicional vive en la vista.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        if user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+        ]):
+            return True
+
+        # Estudiante / Líder Estudiantil: solo lectura.
+        return request.method in SAFE_METHODS
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
+            return obj.semillero.grupo_investigacion.director == user
+
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            return obj.semillero.director == user
+
+        # Resto de roles: solo lectura.
+        return request.method in SAFE_METHODS
