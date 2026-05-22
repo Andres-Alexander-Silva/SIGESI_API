@@ -263,7 +263,7 @@ def test_director_semillero_cannot_set_estado_aprobado_via_patch(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize('estado', ['borrador', 'enviado'])
+@pytest.mark.parametrize('estado', ['borrador', 'enviado', 'rechazado'])
 def test_patch_estado_borrador_or_enviado_clears_aprobacion(
     auth_client, admin_user, semillero_aprobado, estado
 ):
@@ -283,7 +283,22 @@ def test_patch_estado_borrador_or_enviado_clears_aprobacion(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize('estado', ['rechazado', 'en_ejecucion', 'finalizado'])
+def test_patch_rechazado_without_prior_approval_clears_aprobacion(
+    auth_client, admin_user, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)  # never approved
+    client = auth_client(admin_user)
+    resp = client.patch(f'{URL}{plan.id}/', {'estado': 'rechazado'}, format='json')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.estado == PlanAccion.EstadoChoices.RECHAZADO
+    assert plan.aprobado_por is None
+    assert plan.fecha_aprobacion is None
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('estado', ['en_ejecucion', 'finalizado'])
 def test_patch_other_estado_requires_prior_approval(
     auth_client, admin_user, semillero_aprobado, estado
 ):
@@ -294,7 +309,7 @@ def test_patch_other_estado_requires_prior_approval(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize('estado', ['rechazado', 'en_ejecucion', 'finalizado'])
+@pytest.mark.parametrize('estado', ['en_ejecucion', 'finalizado'])
 def test_patch_other_estado_allowed_when_previously_approved(
     auth_client, admin_user, semillero_aprobado, estado
 ):

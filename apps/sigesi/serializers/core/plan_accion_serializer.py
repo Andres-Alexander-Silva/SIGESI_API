@@ -28,10 +28,10 @@ class PlanAccionListSerializer(serializers.ModelSerializer):
 ESTADOS_LIMPIA_APROBACION = {
     PlanAccion.EstadoChoices.BORRADOR,
     PlanAccion.EstadoChoices.ENVIADO,
+    PlanAccion.EstadoChoices.RECHAZADO,
 }
 # Estados que solo pueden fijarse si el plan ya fue aprobado previamente.
 ESTADOS_REQUIEREN_APROBACION = {
-    PlanAccion.EstadoChoices.RECHAZADO,
     PlanAccion.EstadoChoices.EN_EJECUCION,
     PlanAccion.EstadoChoices.FINALIZADO,
 }
@@ -45,10 +45,11 @@ class PlanAccionCreateUpdateSerializer(serializers.ModelSerializer):
 
     - ``aprobado``: solo Admin / Director de Grupo. Fija ``aprobado_por`` al
       usuario de la solicitud y ``fecha_aprobacion`` a la fecha actual.
-    - ``borrador`` / ``enviado``: limpia ``aprobado_por`` y ``fecha_aprobacion``.
-    - ``rechazado`` / ``en_ejecucion`` / ``finalizado``: solo si el plan fue
-      aprobado previamente (``aprobado_por`` no nulo); conservan la información
-      de aprobación.
+    - ``borrador`` / ``enviado`` / ``rechazado``: limpia ``aprobado_por`` y
+      ``fecha_aprobacion``.
+    - ``en_ejecucion`` / ``finalizado``: solo si el plan fue aprobado
+      previamente (``aprobado_por`` no nulo); conservan la información de
+      aprobación.
 
     ``aprobado_por`` y ``fecha_aprobacion`` no son escribibles directamente: los
     gestiona el servidor según ``estado``.
