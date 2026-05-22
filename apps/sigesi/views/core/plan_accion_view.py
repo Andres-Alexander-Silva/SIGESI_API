@@ -164,6 +164,7 @@ class PlanAccionViewSet(viewsets.ModelViewSet):
         request_body=no_body,
         responses={
             200: PlanAccionListSerializer,
+            400: openapi.Response('El plan de acción ya está aprobado'),
             403: openapi.Response('No tiene permisos para aprobar'),
             404: openapi.Response('Plan de acción no encontrado'),
         },
@@ -186,6 +187,12 @@ class PlanAccionViewSet(viewsets.ModelViewSet):
         # get_object() aplica el filtro de queryset y has_object_permission,
         # de modo que el Director de Grupo solo alcanza planes de su grupo.
         plan = self.get_object()
+
+        if plan.estado == PlanAccion.EstadoChoices.APROBADO:
+            return Response(
+                {'error': 'El plan de acción ya está aprobado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         plan.estado = PlanAccion.EstadoChoices.APROBADO
         plan.aprobado_por = user

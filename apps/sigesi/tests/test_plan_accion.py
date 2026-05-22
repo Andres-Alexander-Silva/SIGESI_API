@@ -1,5 +1,6 @@
 """Smoke tests for /api/v1/core/plan-accion/ — CRUD, scope, aval gate, aprobar."""
 import pytest
+from django.utils import timezone
 
 from apps.sigesi.models import PlanAccion, MatriculaSemillero
 
@@ -190,6 +191,14 @@ def test_director_grupo_can_aprobar_plan_of_own_group(
 
 
 @pytest.mark.django_db
+def test_aprobar_already_aprobado_returns_400(auth_client, admin_user, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado, estado=PlanAccion.EstadoChoices.APROBADO)
+    client = auth_client(admin_user)
+    resp = client.post(f'{URL}{plan.id}/aprobar/')
+    assert resp.status_code == 400, resp.content
+
+
+@pytest.mark.django_db
 def test_director_semillero_cannot_aprobar_plan(
     auth_client, director_semillero, semillero_aprobado
 ):
@@ -207,3 +216,129 @@ def test_estudiante_cannot_aprobar_plan(
     client = auth_client(estudiante)
     resp = client.post(f'{URL}{plan.id}/aprobar/')
     assert resp.status_code == 403, resp.content
+
+
+# --------------------------------------------------------------------------- #
+# estado transitions via PUT/PATCH
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.django_db
+def test_patch_estado_aprobado_stamps_like_aprobar(
+    auth_client, director_grupo, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(director_grupo)
+    resp = client.patch(f'{URL}{plan.id}/', {'estado': 'aprobado'}, format='json')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.estado == PlanAccion.EstadoChoices.APROBADO
+    assert plan.aprobado_por == director_grupo
+    assert plan.fecha_aprobacion is not None
+
+
+@pytest.mark.django_db
+def test_admin_patch_estado_aprobado_stamps(auth_client, admin_user, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(admin_user)
+    resp = client.patch(f'{URL}{plan.id}/', {'estado': 'aprobado'}, format='json')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.aprobado_por == admin_user
+    assert plan.fecha_aprobacion is not None
+
+
+@pytest.mark.django_db
+def test_director_semillero_cannot_set_estado_aprobado_via_patch(
+    auth_client, director_semillero, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(director_semillero)
+    resp = client.patch(f'{URL}{plan.id}/', {'estado': 'aprobado'}, format='json')
+    assert resp.status_code == 403, resp.content
+
+    plan.refresh_from_db()
+    assert plan.aprobado_por is None
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('estado', ['borrador', 'enviado'])
+def test_patch_estado_borrador_or_enviado_clears_aprobacion(
+    auth_client, admin_user, semillero_aprobado, estado
+):
+    plan = _make_plan(
+        semillero_aprobado,
+        estado=PlanAccion.EstadoChoices.APROBADO,
+        aprobado_por=admin_user,
+    )
+    client = auth_client(admin_user)
+    resp = client.patch(f'{URL}{plan.id}/', {'estado': estado}, format='json')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.estado == estado
+    assert plan.aprobado_por is None
+    assert plan.fecha_aprobacion is None
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('estado', ['rechazado', 'en_ejecucion', 'finalizado'])
+def test_patch_other_estado_requires_prior_approval(
+    auth_client, admin_user, semillero_aprobado, estado
+):
+    plan = _make_plan(semillero_aprobado)  # never approved
+    client = auth_client(admin_user)
+    resp = client.patch(f'{URL}{plan.id}/', {'estado': estado}, format='json')
+    assert resp.status_code == 400, resp.content
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('estado', ['rechazado', 'en_ejecucion', 'finalizado'])
+def test_patch_other_estado_allowed_when_previously_approved(
+    auth_client, admin_user, semillero_aprobado, estado
+):
+    fecha = timezone.now()
+    plan = _make_plan(
+        semillero_aprobado,
+        estado=PlanAccion.EstadoChoices.APROBADO,
+        aprobado_por=admin_user,
+        fecha_aprobacion=fecha,
+    )
+    client = auth_client(admin_user)
+    resp = client.patch(f'{URL}{plan.id}/', {'estado': estado}, format='json')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.estado == estado
+    # El sello de aprobación se conserva.
+    assert plan.aprobado_por == admin_user
+    assert plan.fecha_aprobacion == fecha
+
+
+@pytest.mark.django_db
+def test_put_resending_aprobado_on_approved_plan_is_noop(
+    auth_client, admin_user, semillero_aprobado
+):
+    fecha = timezone.now()
+    plan = _make_plan(
+        semillero_aprobado,
+        estado=PlanAccion.EstadoChoices.APROBADO,
+        aprobado_por=admin_user,
+        fecha_aprobacion=fecha,
+    )
+    client = auth_client(admin_user)
+    resp = client.put(f'{URL}{plan.id}/', {
+        'semillero': semillero_aprobado.id,
+        'titulo': 'Plan editado',
+        'semestre': '2025-1',
+        'objetivos': 'o2',
+        'metas': 'm2',
+        'estado': 'aprobado',
+    }, format='json')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.titulo == 'Plan editado'
+    assert plan.aprobado_por == admin_user
+    assert plan.fecha_aprobacion == fecha  # no re-sello
