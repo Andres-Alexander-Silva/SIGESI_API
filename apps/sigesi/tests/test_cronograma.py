@@ -128,7 +128,7 @@ def test_director_semillero_does_not_see_other_semillero_cronogramas(
     )
     otro_plan = PlanAccion.objects.create(
         semillero=otro_semillero, titulo='P', semestre='2025-1',
-        objetivos='o', metas='m',
+        metas='m',
     )
     Cronograma.objects.create(
         plan_accion=otro_plan, fecha_inicio=date.today(), fecha_fin=date.today())

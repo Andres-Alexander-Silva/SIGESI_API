@@ -84,7 +84,7 @@ def test_director_semillero_only_sees_own_actividades(
         estado_aval=Semillero.EstadoAvalChoices.APROBADO,
     )
     otro_plan = PlanAccion.objects.create(
-        semillero=otro_semillero, titulo='P', semestre='2025-1', objetivos='o', metas='m')
+        semillero=otro_semillero, titulo='P', semestre='2025-1', metas='m')
     otro_cron = Cronograma.objects.create(
         plan_accion=otro_plan, fecha_inicio=date.today(), fecha_fin=date.today())
     ActividadCronograma.objects.create(

@@ -394,6 +394,7 @@ class PlanEstrategico(models.Model):
         BORRADOR = 'borrador', 'Borrador'
         EN_REVISION = 'en_revision', 'En Revisión'
         APROBADO = 'aprobado', 'Aprobado'
+        RECHAZADO = 'rechazado', 'Rechazado'
         EN_EJECUCION = 'en_ejecucion', 'En Ejecución'
         FINALIZADO = 'finalizado', 'Finalizado'
 
@@ -465,7 +466,6 @@ class PlanAccion(models.Model):
     titulo = models.CharField(max_length=300, verbose_name='Título')
     semestre = models.CharField(
         max_length=10, verbose_name='Semestre (ej: 2025-1)')
-    objetivos = models.TextField(verbose_name='Objetivos')
     metas = models.TextField(verbose_name='Metas')
     estado = models.CharField(
         max_length=20,
@@ -494,6 +494,39 @@ class PlanAccion(models.Model):
 
     def __str__(self):
         return f"{self.titulo} - {self.semillero} ({self.semestre})"
+
+
+class ObjetivosPlanAccion(models.Model):
+    """Objetivo individual de un Plan de Acción, clasificado por categoría."""
+
+    class CategoriaChoices(models.TextChoices):
+        ACADEMICOS = 'academicos', 'Académicos'
+        INVESTIGATIVOS = 'investigativos', 'Investigativos'
+        ADMINISTRATIVOS = 'administrativos', 'Administrativos'
+        INSTITUCIONALES = 'institucionales', 'Institucionales'
+
+    plan_accion = models.ForeignKey(
+        PlanAccion,
+        on_delete=models.CASCADE,
+        related_name='objetivos',
+        verbose_name='Plan de acción'
+    )
+    descripcion = models.TextField(verbose_name='Descripción')
+    categoria = models.CharField(
+        max_length=20,
+        choices=CategoriaChoices.choices,
+        verbose_name='Categoría'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Objetivo de Plan de Acción'
+        verbose_name_plural = 'Objetivos de Plan de Acción'
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.get_categoria_display()} - {self.plan_accion}"
 
 
 class Cronograma(models.Model):

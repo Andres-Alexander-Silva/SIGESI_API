@@ -22,6 +22,7 @@ class PlanAccionViewSet(viewsets.ModelViewSet):
     queryset = (
         PlanAccion.objects.all()
         .select_related('semillero', 'plan_estrategico', 'aprobado_por')
+        .prefetch_related('objetivos')
     )
     permission_classes = [PlanAccionRolePermission]
     filterset_fields = ['semillero', 'semestre']
@@ -202,6 +203,68 @@ class PlanAccionViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 'message': 'Plan de acción aprobado con éxito',
+                'data': PlanAccionListSerializer(plan).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @swagger_auto_schema(
+        operation_summary='Rechazar plan de acción',
+        operation_description=(
+            'Rechaza el plan de acción indicado. Solo el Administrador y el '
+            'Director de Grupo (del grupo al que pertenece el semillero) pueden '
+            'rechazar. No requiere cuerpo: marca `estado=rechazado` y limpia '
+            '`aprobado_por` y `fecha_aprobacion`.'
+        ),
+        request_body=no_body,
+        responses={
+            200: PlanAccionListSerializer,
+            400: openapi.Response('El plan de acción ya está rechazado'),
+            403: openapi.Response('No tiene permisos para rechazar'),
+            404: openapi.Response('Plan de acción no encontrado'),
+        },
+        tags=['Plan de Acción'],
+    )
+    @action(detail=True, methods=['post'], url_path='rechazar')
+    def rechazar(self, request, pk=None):
+        """Rechaza un plan de acción (solo Administrador / Director de Grupo).
+
+        Restringe el acceso a Administrador y Director de Grupo; ``get_object()``
+        aplica el filtro de queryset y ``has_object_permission``, de modo que el
+        Director de Grupo solo puede rechazar planes de los semilleros de su
+        grupo. Si el plan ya está rechazado responde 400. Al rechazar limpia
+        ``aprobado_por`` y ``fecha_aprobacion``.
+        """
+        user = request.user
+
+        # Solo Administrador y Director de Grupo pueden rechazar.
+        if not user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.DIRECTOR_GRUPO,
+        ]):
+            return Response(
+                {'error': 'Solo el Administrador o el Director de Grupo pueden rechazar un plan de acción.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # get_object() aplica el filtro de queryset y has_object_permission,
+        # de modo que el Director de Grupo solo alcanza planes de su grupo.
+        plan = self.get_object()
+
+        if plan.estado == PlanAccion.EstadoChoices.RECHAZADO:
+            return Response(
+                {'error': 'El plan de acción ya está rechazado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        plan.estado = PlanAccion.EstadoChoices.RECHAZADO
+        plan.aprobado_por = None
+        plan.fecha_aprobacion = None
+        plan.save(update_fields=['estado', 'aprobado_por', 'fecha_aprobacion', 'updated_at'])
+
+        return Response(
+            {
+                'message': 'Plan de acción rechazado con éxito',
                 'data': PlanAccionListSerializer(plan).data,
             },
             status=status.HTTP_200_OK,

@@ -200,7 +200,6 @@ def plan_accion(db, semillero_aprobado):
         semillero=semillero_aprobado,
         titulo='Plan de acción uno',
         semestre='2025-1',
-        objetivos='Objetivos.',
         metas='Metas.',
     )
 
@@ -211,7 +210,6 @@ def plan_accion_sin_aval(db, semillero_sin_aprobar):
         semillero=semillero_sin_aprobar,
         titulo='Plan sin aval',
         semestre='2025-1',
-        objetivos='Objetivos.',
         metas='Metas.',
     )
 

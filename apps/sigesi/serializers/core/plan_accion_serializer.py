@@ -2,8 +2,16 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 
-from apps.sigesi.models import PlanAccion, User
+from apps.sigesi.models import ObjetivosPlanAccion, PlanAccion, User
 from apps.sigesi.utils.aval import validar_semilleros_avalados
+
+
+class ObjetivosPlanAccionSerializer(serializers.ModelSerializer):
+    """Serializador para un objetivo de plan de acción (descripción y categoría)."""
+
+    class Meta:
+        model = ObjetivosPlanAccion
+        fields = ['id', 'descripcion', 'categoria']
 
 
 class PlanAccionListSerializer(serializers.ModelSerializer):
@@ -12,6 +20,7 @@ class PlanAccionListSerializer(serializers.ModelSerializer):
     semillero_nombre = serializers.CharField(source='semillero.nombre', read_only=True)
     aprobado_por_nombre = serializers.CharField(
         source='aprobado_por.get_full_name', read_only=True)
+    objetivos = ObjetivosPlanAccionSerializer(many=True, read_only=True)
 
     class Meta:
         model = PlanAccion
@@ -53,7 +62,13 @@ class PlanAccionCreateUpdateSerializer(serializers.ModelSerializer):
 
     ``aprobado_por`` y ``fecha_aprobacion`` no son escribibles directamente: los
     gestiona el servidor según ``estado``.
+
+    ``objetivos`` es una lista anidada de objetivos (descripción + categoría);
+    en ``update`` se aplica una estrategia de reemplazo total: si se envía la
+    lista, se borran los objetivos previos y se recrean a partir del payload.
     """
+
+    objetivos = ObjetivosPlanAccionSerializer(many=True)
 
     class Meta:
         model = PlanAccion
@@ -130,10 +145,27 @@ class PlanAccionCreateUpdateSerializer(serializers.ModelSerializer):
 
         return validated_data
 
+    def _guardar_objetivos(self, plan, objetivos_data):
+        """Crea las filas de ``ObjetivosPlanAccion`` asociadas al plan."""
+        ObjetivosPlanAccion.objects.bulk_create([
+            ObjetivosPlanAccion(plan_accion=plan, **obj)
+            for obj in objetivos_data
+        ])
+
     def create(self, validated_data):
+        objetivos_data = validated_data.pop('objetivos', [])
         validated_data = self._aplicar_estado(validated_data)
-        return super().create(validated_data)
+        plan = super().create(validated_data)
+        self._guardar_objetivos(plan, objetivos_data)
+        return plan
 
     def update(self, instance, validated_data):
+        # Reemplazo total: si se envía ``objetivos``, se borran los previos y se
+        # recrean a partir del payload.
+        objetivos_data = validated_data.pop('objetivos', None)
         validated_data = self._aplicar_estado(validated_data)
-        return super().update(instance, validated_data)
+        plan = super().update(instance, validated_data)
+        if objetivos_data is not None:
+            plan.objetivos.all().delete()
+            self._guardar_objetivos(plan, objetivos_data)
+        return plan

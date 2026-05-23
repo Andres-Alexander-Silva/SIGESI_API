@@ -13,7 +13,9 @@ def _payload(semillero, semestre='2025-1', **overrides):
         'semillero': semillero.id,
         'titulo': 'Plan semestral',
         'semestre': semestre,
-        'objetivos': 'Objetivos del plan.',
+        'objetivos': [
+            {'descripcion': 'Objetivo uno', 'categoria': 'academicos'},
+        ],
         'metas': 'Metas del plan.',
     }
     data.update(overrides)
@@ -25,7 +27,6 @@ def _make_plan(semillero, semestre='2025-1', **overrides):
         semillero=semillero,
         titulo='Plan',
         semestre=semestre,
-        objetivos='o',
         metas='m',
         **overrides,
     )
@@ -219,6 +220,79 @@ def test_estudiante_cannot_aprobar_plan(
 
 
 # --------------------------------------------------------------------------- #
+# rechazar action
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.django_db
+def test_admin_can_rechazar_plan(auth_client, admin_user, semillero_aprobado):
+    plan = _make_plan(
+        semillero_aprobado,
+        estado=PlanAccion.EstadoChoices.APROBADO,
+        aprobado_por=admin_user,
+        fecha_aprobacion=timezone.now(),
+    )
+    client = auth_client(admin_user)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.estado == PlanAccion.EstadoChoices.RECHAZADO
+    assert plan.aprobado_por is None
+    assert plan.fecha_aprobacion is None
+
+
+@pytest.mark.django_db
+def test_director_grupo_can_rechazar_plan_of_own_group(
+    auth_client, director_grupo, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(director_grupo)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.estado == PlanAccion.EstadoChoices.RECHAZADO
+
+
+@pytest.mark.django_db
+def test_rechazar_already_rechazado_returns_400(auth_client, admin_user, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado, estado=PlanAccion.EstadoChoices.RECHAZADO)
+    client = auth_client(admin_user)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 400, resp.content
+
+
+@pytest.mark.django_db
+def test_director_semillero_cannot_rechazar_plan(
+    auth_client, director_semillero, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(director_semillero)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 403, resp.content
+
+
+@pytest.mark.django_db
+def test_estudiante_cannot_rechazar_plan(
+    auth_client, estudiante, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(estudiante)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 403, resp.content
+
+
+@pytest.mark.django_db
+def test_lider_cannot_rechazar_plan(
+    auth_client, lider_estudiantil, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(lider_estudiantil)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 403, resp.content
+
+
+# --------------------------------------------------------------------------- #
 # estado transitions via PUT/PATCH
 # --------------------------------------------------------------------------- #
 
@@ -347,7 +421,7 @@ def test_put_resending_aprobado_on_approved_plan_is_noop(
         'semillero': semillero_aprobado.id,
         'titulo': 'Plan editado',
         'semestre': '2025-1',
-        'objetivos': 'o2',
+        'objetivos': [{'descripcion': 'o2', 'categoria': 'investigativos'}],
         'metas': 'm2',
         'estado': 'aprobado',
     }, format='json')
@@ -357,3 +431,71 @@ def test_put_resending_aprobado_on_approved_plan_is_noop(
     assert plan.titulo == 'Plan editado'
     assert plan.aprobado_por == admin_user
     assert plan.fecha_aprobacion == fecha  # no re-sello
+
+
+# --------------------------------------------------------------------------- #
+# objetivos anidados (ObjetivosPlanAccion)
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.django_db
+def test_create_plan_with_objetivos(auth_client, admin_user, semillero_aprobado):
+    client = auth_client(admin_user)
+    payload = _payload(semillero_aprobado, objetivos=[
+        {'descripcion': 'Objetivo académico', 'categoria': 'academicos'},
+        {'descripcion': 'Objetivo investigativo', 'categoria': 'investigativos'},
+    ])
+    resp = client.post(URL, payload, format='json')
+    assert resp.status_code == 201, resp.content
+
+    objetivos = resp.data['data']['objetivos']
+    assert len(objetivos) == 2
+    assert {o['categoria'] for o in objetivos} == {'academicos', 'investigativos'}
+
+
+@pytest.mark.django_db
+def test_invalid_categoria_returns_400(auth_client, admin_user, semillero_aprobado):
+    client = auth_client(admin_user)
+    payload = _payload(semillero_aprobado, objetivos=[
+        {'descripcion': 'X', 'categoria': 'inexistente'},
+    ])
+    resp = client.post(URL, payload, format='json')
+    assert resp.status_code == 400, resp.content
+
+
+@pytest.mark.django_db
+def test_update_replaces_objetivos(auth_client, admin_user, semillero_aprobado):
+    from apps.sigesi.models import ObjetivosPlanAccion
+
+    plan = _make_plan(semillero_aprobado)
+    ObjetivosPlanAccion.objects.create(
+        plan_accion=plan, descripcion='Viejo', categoria='academicos')
+
+    client = auth_client(admin_user)
+    resp = client.patch(
+        f'{URL}{plan.id}/',
+        {'objetivos': [
+            {'descripcion': 'Nuevo A', 'categoria': 'administrativos'},
+            {'descripcion': 'Nuevo B', 'categoria': 'institucionales'},
+        ]},
+        format='json',
+    )
+    assert resp.status_code == 200, resp.content
+
+    descripciones = set(plan.objetivos.values_list('descripcion', flat=True))
+    assert descripciones == {'Nuevo A', 'Nuevo B'}  # los previos se reemplazan
+
+
+@pytest.mark.django_db
+def test_retrieve_embeds_objetivos(auth_client, admin_user, semillero_aprobado):
+    from apps.sigesi.models import ObjetivosPlanAccion
+
+    plan = _make_plan(semillero_aprobado)
+    ObjetivosPlanAccion.objects.create(
+        plan_accion=plan, descripcion='Obj', categoria='investigativos')
+
+    client = auth_client(admin_user)
+    resp = client.get(f'{URL}{plan.id}/')
+    assert resp.status_code == 200, resp.content
+    assert isinstance(resp.data['objetivos'], list)
+    assert resp.data['objetivos'][0]['descripcion'] == 'Obj'
+    assert resp.data['objetivos'][0]['categoria'] == 'investigativos'

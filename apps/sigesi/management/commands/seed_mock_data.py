@@ -27,7 +27,7 @@ from django.db import transaction
 from apps.sigesi.models import (
     ProgramaAcademico, LineaInvestigacion, Indicador, Convocatoria,
     GrupoInvestigacion, Semillero, MatriculaSemillero,
-    PlanEstrategico, PlanAccion, Cronograma, ActividadCronograma,
+    PlanEstrategico, PlanAccion, ObjetivosPlanAccion, Cronograma, ActividadCronograma,
     Proyecto, EvaluacionProyecto, FaseProyecto, HitoEntregable, Bitacora,
     Actividad, CronogramaProyecto, Evidencia, Alerta,
     CompetenciaInvestigativa, Rubrica, Evaluacion, PerfilInvestigativo,
@@ -362,7 +362,6 @@ class Command(BaseCommand):
                 defaults=dict(
                     plan_estrategico=pe,
                     titulo=f"Plan de acción {sem} — {s.nombre}"[:300],
-                    objetivos=self.fake.paragraph(),
                     metas=self.fake.paragraph(),
                     estado=self._choice(PlanAccion.EstadoChoices),
                     aprobado_por=random.choice(admins) if admins else None,
@@ -372,6 +371,23 @@ class Command(BaseCommand):
         self._topup('planes_accion', PlanAccion, pa_factory)
 
         planes_accion = list(PlanAccion.objects.all())
+
+        # Objetivos de cada plan de acción (2-4 por plan). Idempotente: solo
+        # crea para los planes que aún no tienen objetivos.
+        nuevos_objetivos = []
+        for pa in planes_accion:
+            if pa.objetivos.exists():
+                continue
+            nuevos_objetivos.extend([
+                ObjetivosPlanAccion(
+                    plan_accion=pa,
+                    descripcion=self.fake.sentence(),
+                    categoria=self._choice(ObjetivosPlanAccion.CategoriaChoices),
+                )
+                for _ in range(random.randint(2, 4))
+            ])
+        if nuevos_objetivos:
+            ObjetivosPlanAccion.objects.bulk_create(nuevos_objetivos)
 
         def cron_factory(i):
             if not planes_accion:

@@ -326,3 +326,82 @@ def test_estudiante_cannot_aprobar_plan(auth_client, estudiante, semillero_aprob
     client = auth_client(estudiante)
     resp = client.post(f'{URL}{plan.id}/aprobar/')
     assert resp.status_code == 403, resp.content
+
+
+# --------------------------------------------------------------------------- #
+# rechazar action
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.django_db
+def test_admin_can_rechazar_plan(auth_client, admin_user, semillero_aprobado):
+    plan = _make_plan(
+        semillero_aprobado,
+        estado=PlanEstrategico.EstadoChoices.APROBADO,
+        aprobado_por=admin_user,
+    )
+    client = auth_client(admin_user)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.estado == PlanEstrategico.EstadoChoices.RECHAZADO
+    assert plan.aprobado_por is None
+    assert plan.fecha_aprobacion is None
+
+
+@pytest.mark.django_db
+def test_director_grupo_can_rechazar_plan_of_own_group(
+    auth_client, director_grupo, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(director_grupo)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.estado == PlanEstrategico.EstadoChoices.RECHAZADO
+
+
+@pytest.mark.django_db
+def test_rechazar_already_rechazado_returns_400(auth_client, admin_user, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado, estado=PlanEstrategico.EstadoChoices.RECHAZADO)
+    client = auth_client(admin_user)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 400, resp.content
+
+
+@pytest.mark.django_db
+def test_director_grupo_cannot_rechazar_other_group_plan(
+    auth_client, director_grupo, semillero_otro_grupo
+):
+    plan = _make_plan(semillero_otro_grupo)
+    client = auth_client(director_grupo)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    # El plan queda fuera del queryset del director de grupo -> 404.
+    assert resp.status_code == 404, resp.content
+
+
+@pytest.mark.django_db
+def test_director_semillero_cannot_rechazar_plan(
+    auth_client, director_semillero, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(director_semillero)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 403, resp.content
+
+
+@pytest.mark.django_db
+def test_lider_cannot_rechazar_plan(auth_client, lider_estudiantil, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(lider_estudiantil)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 403, resp.content
+
+
+@pytest.mark.django_db
+def test_estudiante_cannot_rechazar_plan(auth_client, estudiante, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(estudiante)
+    resp = client.post(f'{URL}{plan.id}/rechazar/')
+    assert resp.status_code == 403, resp.content
