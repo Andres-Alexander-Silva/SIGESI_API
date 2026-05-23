@@ -414,6 +414,16 @@ class PlanEstrategico(models.Model):
         default=EstadoChoices.BORRADOR,
         verbose_name='Estado'
     )
+    aprobado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='planes_estrategicos_aprobados',
+        verbose_name='Aprobado por'
+    )
+    fecha_aprobacion = models.DateTimeField(
+        null=True, blank=True, verbose_name='Fecha de aprobación')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

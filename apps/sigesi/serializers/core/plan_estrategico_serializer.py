@@ -14,12 +14,15 @@ class PlanEstrategicoListSerializer(serializers.ModelSerializer):
     """
 
     semillero = SemilleroListSerializer(read_only=True)
+    aprobado_por_nombre = serializers.CharField(
+        source='aprobado_por.get_full_name', read_only=True)
 
     class Meta:
         model = PlanEstrategico
         fields = [
             'id', 'semillero', 'titulo', 'anio',
             'objetivos', 'metas', 'indicadores', 'estado',
+            'aprobado_por', 'aprobado_por_nombre', 'fecha_aprobacion',
             'created_at', 'updated_at',
         ]
 

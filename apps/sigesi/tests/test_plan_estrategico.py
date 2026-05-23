@@ -250,3 +250,79 @@ def test_retrieve_embeds_semillero(auth_client, admin_user, semillero_aprobado):
     assert isinstance(resp.data['semillero'], dict)
     assert resp.data['semillero']['id'] == semillero_aprobado.id
     assert resp.data['semillero']['nombre'] == semillero_aprobado.nombre
+
+
+# --------------------------------------------------------------------------- #
+# aprobar action
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.django_db
+def test_admin_can_aprobar_plan(auth_client, admin_user, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(admin_user)
+    resp = client.post(f'{URL}{plan.id}/aprobar/')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.estado == PlanEstrategico.EstadoChoices.APROBADO
+    assert plan.aprobado_por == admin_user
+    assert plan.fecha_aprobacion is not None
+
+
+@pytest.mark.django_db
+def test_director_grupo_can_aprobar_plan_of_own_group(
+    auth_client, director_grupo, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(director_grupo)
+    resp = client.post(f'{URL}{plan.id}/aprobar/')
+    assert resp.status_code == 200, resp.content
+
+    plan.refresh_from_db()
+    assert plan.estado == PlanEstrategico.EstadoChoices.APROBADO
+    assert plan.aprobado_por == director_grupo
+
+
+@pytest.mark.django_db
+def test_aprobar_already_aprobado_returns_400(auth_client, admin_user, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado, estado=PlanEstrategico.EstadoChoices.APROBADO)
+    client = auth_client(admin_user)
+    resp = client.post(f'{URL}{plan.id}/aprobar/')
+    assert resp.status_code == 400, resp.content
+
+
+@pytest.mark.django_db
+def test_director_grupo_cannot_aprobar_other_group_plan(
+    auth_client, director_grupo, semillero_otro_grupo
+):
+    plan = _make_plan(semillero_otro_grupo)
+    client = auth_client(director_grupo)
+    resp = client.post(f'{URL}{plan.id}/aprobar/')
+    # El plan queda fuera del queryset del director de grupo -> 404.
+    assert resp.status_code == 404, resp.content
+
+
+@pytest.mark.django_db
+def test_director_semillero_cannot_aprobar_plan(
+    auth_client, director_semillero, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(director_semillero)
+    resp = client.post(f'{URL}{plan.id}/aprobar/')
+    assert resp.status_code == 403, resp.content
+
+
+@pytest.mark.django_db
+def test_lider_cannot_aprobar_plan(auth_client, lider_estudiantil, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(lider_estudiantil)
+    resp = client.post(f'{URL}{plan.id}/aprobar/')
+    assert resp.status_code == 403, resp.content
+
+
+@pytest.mark.django_db
+def test_estudiante_cannot_aprobar_plan(auth_client, estudiante, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(estudiante)
+    resp = client.post(f'{URL}{plan.id}/aprobar/')
+    assert resp.status_code == 403, resp.content

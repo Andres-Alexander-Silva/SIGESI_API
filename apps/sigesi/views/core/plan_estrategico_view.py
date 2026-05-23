@@ -1,6 +1,8 @@
+from django.utils import timezone
 from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
-from drf_yasg.utils import swagger_auto_schema
+from drf_yasg.utils import swagger_auto_schema, no_body
 from drf_yasg import openapi
 
 from apps.sigesi.models import PlanEstrategico, User
@@ -169,3 +171,65 @@ class PlanEstrategicoViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         """Elimina un plan estratégico."""
         return super().destroy(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary='Aprobar plan estratégico',
+        operation_description=(
+            'Aprueba el plan estratégico indicado. Solo el Administrador y el '
+            'Director de Grupo (del grupo al que pertenece el semillero) pueden '
+            'aprobar. No requiere cuerpo: marca `estado=aprobado`, fija '
+            '`aprobado_por` al usuario autenticado y `fecha_aprobacion` a la '
+            'fecha de la solicitud.'
+        ),
+        request_body=no_body,
+        responses={
+            200: PlanEstrategicoListSerializer,
+            400: openapi.Response('El plan estratégico ya está aprobado'),
+            403: openapi.Response('No tiene permisos para aprobar'),
+            404: openapi.Response('Plan estratégico no encontrado'),
+        },
+        tags=['Plan Estratégico'],
+    )
+    @action(detail=True, methods=['post'], url_path='aprobar')
+    def aprobar(self, request, pk=None):
+        """Aprueba un plan estratégico (solo Administrador / Director de Grupo).
+
+        Restringe el acceso a Administrador y Director de Grupo; ``get_object()``
+        aplica el filtro de queryset y ``has_object_permission``, de modo que el
+        Director de Grupo solo puede aprobar planes de los semilleros de su
+        grupo. Si el plan ya está aprobado responde 400.
+        """
+        user = request.user
+
+        # Solo Administrador y Director de Grupo pueden aprobar.
+        if not user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.DIRECTOR_GRUPO,
+        ]):
+            return Response(
+                {'error': 'Solo el Administrador o el Director de Grupo pueden aprobar un plan estratégico.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # get_object() aplica el filtro de queryset y has_object_permission,
+        # de modo que el Director de Grupo solo alcanza planes de su grupo.
+        plan = self.get_object()
+
+        if plan.estado == PlanEstrategico.EstadoChoices.APROBADO:
+            return Response(
+                {'error': 'El plan estratégico ya está aprobado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        plan.estado = PlanEstrategico.EstadoChoices.APROBADO
+        plan.aprobado_por = user
+        plan.fecha_aprobacion = timezone.now()
+        plan.save(update_fields=['estado', 'aprobado_por', 'fecha_aprobacion', 'updated_at'])
+
+        return Response(
+            {
+                'message': 'Plan estratégico aprobado con éxito',
+                'data': PlanEstrategicoListSerializer(plan).data,
+            },
+            status=status.HTTP_200_OK,
+        )
