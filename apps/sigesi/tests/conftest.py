@@ -7,10 +7,12 @@ from rest_framework.test import APIClient
 
 from apps.sigesi.models import (
     Actividad,
+    ActividadCronograma,
     Cronograma,
     CronogramaProyecto,
     GrupoInvestigacion,
     LineaInvestigacion,
+    ObjetivosPlanAccion,
     PlanAccion,
     ProgramaAcademico,
     Proyecto,
@@ -222,6 +224,25 @@ def cronograma(db, plan_accion, director_semillero):
         responsable=director_semillero,
         fecha_inicio=date.today(),
         fecha_fin=date.today(),
+    )
+
+
+@pytest.fixture
+def objetivo_plan_accion(db, plan_accion):
+    return ObjetivosPlanAccion.objects.create(
+        plan_accion=plan_accion,
+        descripcion='Objetivo académico.',
+        categoria='academicos',
+    )
+
+
+@pytest.fixture
+def actividad_cronograma(db, cronograma):
+    return ActividadCronograma.objects.create(
+        cronograma=cronograma,
+        titulo='Actividad uno',
+        fecha_inicio=date.today(),
+        fecha_fin_estimada=date.today(),
     )
 
 

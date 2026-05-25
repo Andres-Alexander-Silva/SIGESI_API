@@ -14,7 +14,7 @@ class ActividadCronogramaListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'cronograma', 'titulo', 'descripcion',
             'responsable', 'responsable_nombre',
-            'objetivo_general', 'objetivos_especificos',
+            'objetivo_general', 'objetivos_especificos', 'estado',
             'fecha_inicio', 'fecha_fin_estimada', 'fecha_fin',
             'created_at', 'updated_at',
         ]
@@ -27,7 +27,7 @@ class ActividadCronogramaCreateUpdateSerializer(serializers.ModelSerializer):
         model = ActividadCronograma
         fields = [
             'cronograma', 'titulo', 'descripcion', 'responsable',
-            'objetivo_general', 'objetivos_especificos',
+            'objetivo_general', 'objetivos_especificos', 'estado',
             'fecha_inicio', 'fecha_fin_estimada', 'fecha_fin',
         ]
 
