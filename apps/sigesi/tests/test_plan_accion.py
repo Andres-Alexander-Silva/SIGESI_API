@@ -1,8 +1,16 @@
 """Smoke tests for /api/v1/core/plan-accion/ — CRUD, scope, aval gate, aprobar."""
+from datetime import date, timedelta
+
 import pytest
 from django.utils import timezone
 
-from apps.sigesi.models import PlanAccion, MatriculaSemillero
+from apps.sigesi.models import (
+    ActividadCronograma,
+    Cronograma,
+    MatriculaSemillero,
+    ObjetivosPlanAccion,
+    PlanAccion,
+)
 
 
 URL = '/api/v1/core/plan-accion/'
@@ -499,3 +507,125 @@ def test_retrieve_embeds_objetivos(auth_client, admin_user, semillero_aprobado):
     assert isinstance(resp.data['objetivos'], list)
     assert resp.data['objetivos'][0]['descripcion'] == 'Obj'
     assert resp.data['objetivos'][0]['categoria'] == 'investigativos'
+
+
+# --------------------------------------------------------------------------- #
+# dashboard action
+# --------------------------------------------------------------------------- #
+
+def _seed_dashboard(plan, responsable):
+    """Crea 3 objetivos (2 académicos, 1 investigativo) y 4 actividades.
+
+    Actividades: 2 completadas (una a tiempo, una atrasada) y 2 pendientes
+    (una atrasada por vencimiento, una a tiempo). Todas con ``responsable``.
+    """
+    hoy = date.today()
+    ObjetivosPlanAccion.objects.create(plan_accion=plan, descripcion='a1', categoria='academicos')
+    ObjetivosPlanAccion.objects.create(plan_accion=plan, descripcion='a2', categoria='academicos')
+    ObjetivosPlanAccion.objects.create(plan_accion=plan, descripcion='i1', categoria='investigativos')
+
+    cron = Cronograma.objects.create(
+        plan_accion=plan, responsable=responsable, fecha_inicio=hoy, fecha_fin=hoy)
+    comp = ActividadCronograma.EstadoChoices.COMPLETADA
+    pend = ActividadCronograma.EstadoChoices.PENDIENTE
+    # completada a tiempo
+    ActividadCronograma.objects.create(
+        cronograma=cron, titulo='c-ok', responsable=responsable, estado=comp,
+        fecha_inicio=hoy - timedelta(days=10),
+        fecha_fin_estimada=hoy, fecha_fin=hoy - timedelta(days=1))
+    # completada atrasada (fecha_fin > estimada)
+    ActividadCronograma.objects.create(
+        cronograma=cron, titulo='c-late', responsable=responsable, estado=comp,
+        fecha_inicio=hoy - timedelta(days=10),
+        fecha_fin_estimada=hoy - timedelta(days=5), fecha_fin=hoy)
+    # pendiente atrasada (estimada ya pasó)
+    ActividadCronograma.objects.create(
+        cronograma=cron, titulo='p-late', responsable=responsable, estado=pend,
+        fecha_inicio=hoy - timedelta(days=10),
+        fecha_fin_estimada=hoy - timedelta(days=1))
+    # pendiente a tiempo (estimada en el futuro)
+    ActividadCronograma.objects.create(
+        cronograma=cron, titulo='p-ok', responsable=responsable, estado=pend,
+        fecha_inicio=hoy,
+        fecha_fin_estimada=hoy + timedelta(days=10))
+
+
+@pytest.mark.django_db
+def test_admin_dashboard_metrics(auth_client, admin_user, semillero_aprobado, director_semillero):
+    plan = _make_plan(semillero_aprobado)
+    _seed_dashboard(plan, director_semillero)
+
+    client = auth_client(admin_user)
+    resp = client.get(f'{URL}{plan.id}/dashboard/')
+    assert resp.status_code == 200, resp.content
+    data = resp.json()
+
+    # Distribución de objetivos por categoría: 2/3 académicos, 1/3 investigativos.
+    cats = {c['categoria']: c for c in data['objetivos_por_categoria']['categorias']}
+    assert data['objetivos_por_categoria']['total'] == 3
+    assert len(cats) == 4  # las 4 categorías siempre presentes
+    assert cats['academicos']['cantidad'] == 2
+    assert cats['academicos']['porcentaje'] == 66.67
+    assert cats['investigativos']['porcentaje'] == 33.33
+    assert cats['administrativos']['porcentaje'] == 0.0
+
+    # Cumplimiento: 2 de 4 completadas.
+    assert data['cumplimiento_actividades'] == {'total': 4, 'completadas': 2, 'porcentaje': 50.0}
+
+    # Puntualidad: 2 atrasadas (c-late, p-late), 2 a tiempo.
+    assert data['puntualidad'] == {'total': 4, 'a_tiempo': 2, 'atrasadas': 2}
+
+    # Por responsable: el director de semillero tiene 4 asignadas, 2 completadas.
+    por_resp = data['actividades_por_responsable']
+    assert len(por_resp) == 1
+    assert por_resp[0]['responsable_id'] == director_semillero.id
+    assert por_resp[0]['asignadas'] == 4
+    assert por_resp[0]['completadas'] == 2
+    assert por_resp[0]['porcentaje'] == 50.0
+
+
+@pytest.mark.django_db
+def test_director_semillero_can_see_own_plan_dashboard(
+    auth_client, director_semillero, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(director_semillero)
+    resp = client.get(f'{URL}{plan.id}/dashboard/')
+    assert resp.status_code == 200, resp.content
+
+
+@pytest.mark.django_db
+def test_estudiante_can_see_dashboard_of_own_semillero(
+    auth_client, estudiante, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)
+    MatriculaSemillero.objects.create(
+        estudiante=estudiante, semillero=semillero_aprobado, semestre='2025-1')
+    client = auth_client(estudiante)
+    resp = client.get(f'{URL}{plan.id}/dashboard/')
+    assert resp.status_code == 200, resp.content
+
+
+@pytest.mark.django_db
+def test_estudiante_cannot_see_dashboard_of_other_semillero(
+    auth_client, estudiante, semillero_aprobado
+):
+    plan = _make_plan(semillero_aprobado)  # estudiante NO matriculado
+    client = auth_client(estudiante)
+    resp = client.get(f'{URL}{plan.id}/dashboard/')
+    assert resp.status_code == 404, resp.content
+
+
+@pytest.mark.django_db
+def test_dashboard_empty_plan_returns_zeros(auth_client, admin_user, semillero_aprobado):
+    plan = _make_plan(semillero_aprobado)
+    client = auth_client(admin_user)
+    resp = client.get(f'{URL}{plan.id}/dashboard/')
+    assert resp.status_code == 200, resp.content
+    data = resp.json()
+
+    assert data['objetivos_por_categoria']['total'] == 0
+    assert all(c['porcentaje'] == 0.0 for c in data['objetivos_por_categoria']['categorias'])
+    assert data['cumplimiento_actividades'] == {'total': 0, 'completadas': 0, 'porcentaje': 0.0}
+    assert data['puntualidad'] == {'total': 0, 'a_tiempo': 0, 'atrasadas': 0}
+    assert data['actividades_por_responsable'] == []

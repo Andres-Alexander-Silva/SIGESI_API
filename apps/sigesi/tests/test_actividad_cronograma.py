@@ -65,6 +65,27 @@ def test_fecha_fin_estimada_before_inicio_returns_400(
 
 
 @pytest.mark.django_db
+def test_estado_defaults_to_pendiente(auth_client, director_semillero, cronograma):
+    client = auth_client(director_semillero)
+    resp = client.post(URL, _payload(cronograma), format='json')
+    assert resp.status_code == 201, resp.content
+    actividad = ActividadCronograma.objects.get(id=resp.data['data']['id'])
+    assert actividad.estado == ActividadCronograma.EstadoChoices.PENDIENTE
+
+
+@pytest.mark.django_db
+def test_estado_can_be_updated(auth_client, director_semillero, cronograma):
+    actividad = ActividadCronograma.objects.create(
+        cronograma=cronograma, titulo='A',
+        fecha_inicio=date.today(), fecha_fin_estimada=date.today())
+    client = auth_client(director_semillero)
+    resp = client.patch(f'{URL}{actividad.id}/', {'estado': 'completada'}, format='json')
+    assert resp.status_code == 200, resp.content
+    actividad.refresh_from_db()
+    assert actividad.estado == ActividadCronograma.EstadoChoices.COMPLETADA
+
+
+@pytest.mark.django_db
 def test_director_semillero_only_sees_own_actividades(
     auth_client, director_semillero, cronograma, grupo
 ):

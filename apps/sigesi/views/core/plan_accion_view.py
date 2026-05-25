@@ -11,6 +11,7 @@ from apps.sigesi.serializers.core.plan_accion_serializer import (
     PlanAccionCreateUpdateSerializer,
 )
 from apps.sigesi.decorators.permissions import PlanAccionRolePermission
+from apps.sigesi.services.plan_accion_dashboard_service import generar_dashboard
 
 
 class PlanAccionViewSet(viewsets.ModelViewSet):
@@ -269,3 +270,31 @@ class PlanAccionViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @swagger_auto_schema(
+        operation_summary='Dashboard del plan de acción',
+        operation_description=(
+            'Retorna métricas agregadas del plan de acción visible para el '
+            'usuario: distribución de objetivos por categoría, porcentaje de '
+            'actividades completadas del cronograma, desglose de actividades '
+            'asignadas y completadas por responsable, y conteo de actividades '
+            'a tiempo vs. atrasadas (medido contra `fecha_fin_estimada`).'
+        ),
+        responses={
+            200: openapi.Response('Métricas del dashboard'),
+            403: openapi.Response('No tiene permisos'),
+            404: openapi.Response('Plan de acción no encontrado'),
+        },
+        tags=['Plan de Acción'],
+    )
+    @action(detail=True, methods=['get'], url_path='dashboard')
+    def dashboard(self, request, pk=None):
+        """Devuelve las métricas agregadas del plan de acción.
+
+        Usa ``get_object()``, de modo que el filtro de queryset por rol y
+        ``has_object_permission`` ya acotan la visibilidad: cada usuario solo
+        obtiene el dashboard de un plan que tenga permitido consultar. El
+        cálculo se delega en ``generar_dashboard``.
+        """
+        plan = self.get_object()
+        return Response(generar_dashboard(plan), status=status.HTTP_200_OK)

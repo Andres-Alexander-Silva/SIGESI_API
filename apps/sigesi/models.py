@@ -564,6 +564,11 @@ class Cronograma(models.Model):
 class ActividadCronograma(models.Model):
     """Actividad concreta dentro de un Cronograma (relación uno-a-muchos)."""
 
+    class EstadoChoices(models.TextChoices):
+        PENDIENTE = 'pendiente', 'Pendiente'
+        EN_PROGRESO = 'en_progreso', 'En progreso'
+        COMPLETADA = 'completada', 'Completada'
+
     cronograma = models.ForeignKey(
         Cronograma,
         on_delete=models.CASCADE,
@@ -583,6 +588,12 @@ class ActividadCronograma(models.Model):
     objetivo_general = models.TextField(blank=True, verbose_name='Objetivo general')
     objetivos_especificos = models.TextField(
         blank=True, verbose_name='Objetivos específicos')
+    estado = models.CharField(
+        max_length=20,
+        choices=EstadoChoices.choices,
+        default=EstadoChoices.PENDIENTE,
+        verbose_name='Estado'
+    )
     fecha_inicio = models.DateField(verbose_name='Fecha de inicio')
     fecha_fin_estimada = models.DateField(verbose_name='Fecha de fin estimada')
     fecha_fin = models.DateField(
