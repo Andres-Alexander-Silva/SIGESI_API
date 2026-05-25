@@ -10,7 +10,8 @@ from apps.sigesi.models import (
 COUNTED_MODELS = [
     'ProgramaAcademico', 'LineaInvestigacion', 'Indicador', 'Convocatoria',
     'GrupoInvestigacion', 'Semillero', 'MatriculaSemillero', 'PlanEstrategico',
-    'PlanAccion', 'Cronograma', 'Proyecto', 'EvaluacionProyecto', 'FaseProyecto',
+    'PlanAccion', 'Cronograma', 'ActividadCronograma', 'Proyecto',
+    'EvaluacionProyecto', 'FaseProyecto',
     'HitoEntregable', 'Bitacora', 'Actividad', 'CronogramaProyecto', 'Evidencia',
     'Alerta', 'CompetenciaInvestigativa', 'Rubrica', 'Evaluacion',
     'PerfilInvestigativo', 'ProduccionAcademica', 'ParticipacionEvento',
