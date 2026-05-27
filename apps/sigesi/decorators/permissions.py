@@ -677,3 +677,55 @@ class PlanEstrategicoRolePermission(BasePermission):
 
         # Resto de roles: solo lectura.
         return request.method in SAFE_METHODS
+
+
+class CompetenciaInvestigativaRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Competencias Investigativas.
+    - Administrador: CRUD completo.
+    - Director de Grupo: solo lectura de las competencias de los semilleros de su grupo.
+    - Director de Semillero: lectura y actualización de las de su propio semillero
+      (no puede crear ni eliminar).
+    - Líder Estudiantil / Estudiante: solo lectura de las de su semillero.
+
+    El alcance por filas (qué competencias ve cada rol) lo aplica adicionalmente
+    el ``get_queryset`` de la vista.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Director de Semillero: lectura y actualización (sin crear ni eliminar).
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            return request.method in SAFE_METHODS or request.method in ('PUT', 'PATCH')
+
+        # Director de Grupo / Líder Estudiantil / Estudiante: solo lectura.
+        if user.tiene_alguno_de([
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.LIDER_ESTUDIANTIL,
+            User.RolChoices.ESTUDIANTE,
+        ]):
+            return request.method in SAFE_METHODS
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Director de Semillero: solo su propio semillero, lectura o actualización.
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            return obj.semillero.director == user and (
+                request.method in SAFE_METHODS or request.method in ('PUT', 'PATCH')
+            )
+
+        # Resto de roles: solo lectura (el alcance por filas lo aplica get_queryset).
+        return request.method in SAFE_METHODS
