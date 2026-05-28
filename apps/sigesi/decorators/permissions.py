@@ -731,6 +731,61 @@ class CompetenciaInvestigativaRolePermission(BasePermission):
         return request.method in SAFE_METHODS
 
 
+class PerfilInvestigativoRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Perfiles Investigativos.
+    - Administrador: CRUD completo.
+    - Director de Grupo: solo lectura de los perfiles de estudiantes matriculados
+      en semilleros de su grupo.
+    - Director de Semillero: solo lectura de los perfiles de estudiantes
+      matriculados en su semillero.
+    - Estudiante: solo lectura de su propio perfil.
+    - Líder Estudiantil: solo lectura de su propio perfil.
+
+    El alcance por filas (qué perfil ve cada rol) lo aplica adicionalmente el
+    ``get_queryset`` de la vista.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Director de Grupo / Director de Semillero / Estudiante / Líder
+        # Estudiantil: solo lectura.
+        if user.tiene_alguno_de([
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+            User.RolChoices.ESTUDIANTE,
+            User.RolChoices.LIDER_ESTUDIANTIL,
+        ]):
+            return request.method in SAFE_METHODS
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Resto de roles habilitados: solo lectura (el alcance por filas lo
+        # aplica get_queryset).
+        if user.tiene_alguno_de([
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+            User.RolChoices.ESTUDIANTE,
+            User.RolChoices.LIDER_ESTUDIANTIL,
+        ]):
+            return request.method in SAFE_METHODS
+
+        return False
+
+
 class EvaluacionRolePermission(BasePermission):
     """
     Control de acceso a nivel de vista y objeto para Evaluaciones de competencias.
