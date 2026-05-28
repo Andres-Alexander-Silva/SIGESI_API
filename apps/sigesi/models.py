@@ -1161,6 +1161,8 @@ class Evaluacion(models.Model):
     nivel_alcanzado = models.CharField(
         max_length=20,
         choices=NivelAlcanzadoChoices.choices,
+        null=True,
+        blank=True,
         verbose_name='Nivel alcanzado'
     )
     puntaje = models.DecimalField(

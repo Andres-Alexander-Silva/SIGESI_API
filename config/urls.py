@@ -43,6 +43,8 @@ urlpatterns = [
     path('api/v1/core/', include('apps.sigesi.routers.core.actividad_cronograma_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.plan_accion_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.plan_estrategico_urls')),
+    path('api/v1/core/', include('apps.sigesi.routers.core.competencias_investigativas_urls')),
+    path('api/v1/core/', include('apps.sigesi.routers.core.evaluaciones_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.producciones_academicas_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.avances_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.evaluacion_proyecto_urls')),
