@@ -729,3 +729,70 @@ class CompetenciaInvestigativaRolePermission(BasePermission):
 
         # Resto de roles: solo lectura (el alcance por filas lo aplica get_queryset).
         return request.method in SAFE_METHODS
+
+
+class EvaluacionRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Evaluaciones de competencias.
+    - Administrador: CRUD completo.
+    - Director de Semillero: CRUD completo sobre las evaluaciones de su propio
+      semillero (resuelto vía ``evaluacion.competencia.semillero``).
+    - Director de Grupo / Líder Estudiantil / Estudiante: solo lectura.
+
+    El alcance por filas (qué evaluaciones ve cada rol) lo aplica adicionalmente
+    el ``get_queryset`` de la vista. Esta clase NO gobierna la acción
+    ``calificar``: esa usa :class:`EvaluacionCalificarPermission` mediante el
+    ``get_permissions`` de la vista.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        if user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+        ]):
+            return True
+
+        # Director de Grupo / Líder Estudiantil / Estudiante: solo lectura.
+        if user.tiene_alguno_de([
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.LIDER_ESTUDIANTIL,
+            User.RolChoices.ESTUDIANTE,
+        ]):
+            return request.method in SAFE_METHODS
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Director de Semillero: CRUD completo sobre su propio semillero.
+        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
+            return obj.competencia.semillero.director == user
+
+        # Resto de roles: solo lectura (el alcance por filas lo aplica get_queryset).
+        return request.method in SAFE_METHODS
+
+
+class EvaluacionCalificarPermission(BasePermission):
+    """
+    Permiso de la acción ``calificar`` de una Evaluación.
+    Solo el evaluador asignado a la evaluación puede fijar el puntaje, las
+    observaciones y el nivel alcanzado. Para una autoevaluación el evaluador es
+    el propio estudiante; para una heteroevaluación es el usuario indicado al
+    crear la evaluación.
+    """
+    message = 'Solo el evaluador asignado puede calificar esta evaluación.'
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated)
+
+    def has_object_permission(self, request, view, obj):
+        return obj.evaluador_id == request.user.id
