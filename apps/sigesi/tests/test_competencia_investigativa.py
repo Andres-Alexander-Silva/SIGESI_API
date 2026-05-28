@@ -11,7 +11,9 @@ import pytest
 
 from apps.sigesi.models import (
     CompetenciaInvestigativa,
+    Evaluacion,
     GrupoInvestigacion,
+    MatriculaSemillero,
     Semillero,
 )
 
@@ -270,3 +272,71 @@ def test_retrieve_embeds_semillero(auth_client, admin_user, semillero_aprobado):
     assert isinstance(resp.data['semillero'], dict)
     assert resp.data['semillero']['id'] == semillero_aprobado.id
     assert resp.data['semillero']['nombre'] == semillero_aprobado.nombre
+
+
+# --------------------------------------------------------------------------- #
+# Dashboard: promedio de puntaje y total de evaluaciones (excluye puntaje nulo)
+# --------------------------------------------------------------------------- #
+
+def _make_evaluacion(competencia, estudiante, puntaje):
+    """Crea una autoevaluación de la competencia con el puntaje dado (o None)."""
+    return Evaluacion.objects.create(
+        competencia=competencia,
+        estudiante=estudiante,
+        evaluador=estudiante,
+        tipo=Evaluacion.TipoChoices.AUTOEVALUACION,
+        semestre='2025-1',
+        puntaje=puntaje,
+    )
+
+
+@pytest.mark.django_db
+def test_dashboard_metrics_exclude_null_puntaje(auth_client, admin_user,
+                                                semillero_aprobado, estudiante):
+    comp = _make_competencia(semillero_aprobado)
+    _make_evaluacion(comp, estudiante, '4.0')
+    _make_evaluacion(comp, estudiante, '5.0')
+    _make_evaluacion(comp, estudiante, None)  # excluida de promedio y total
+    client = auth_client(admin_user)
+    resp = client.get(f'{URL}{comp.id}/dashboard/')
+    assert resp.status_code == 200, resp.content
+    assert resp.data['success'] is True
+    assert resp.data['data']['total_evaluaciones'] == 2
+    assert resp.data['data']['promedio_competencias'] == 4.5
+
+
+@pytest.mark.django_db
+def test_dashboard_empty(auth_client, admin_user, semillero_aprobado):
+    comp = _make_competencia(semillero_aprobado)
+    client = auth_client(admin_user)
+    resp = client.get(f'{URL}{comp.id}/dashboard/')
+    assert resp.status_code == 200, resp.content
+    assert resp.data['data']['total_evaluaciones'] == 0
+    assert resp.data['data']['promedio_competencias'] == 0.0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('rol', ['admin_user', 'director_grupo', 'director_semillero',
+                                 'lider_estudiantil', 'estudiante'])
+def test_dashboard_all_roles_can_read(auth_client, request, rol,
+                                      semillero_aprobado, estudiante):
+    # Matricula al estudiante para que la competencia entre en su alcance.
+    MatriculaSemillero.objects.create(
+        estudiante=estudiante, semillero=semillero_aprobado, semestre='2025-1',
+    )
+    comp = _make_competencia(semillero_aprobado)
+    _make_evaluacion(comp, estudiante, '3.0')
+    user = request.getfixturevalue(rol)
+    client = auth_client(user)
+    resp = client.get(f'{URL}{comp.id}/dashboard/')
+    assert resp.status_code == 200, resp.content
+
+
+@pytest.mark.django_db
+def test_dashboard_out_of_scope_returns_404(auth_client, director_semillero,
+                                            semillero_otro_grupo, estudiante):
+    comp = _make_competencia(semillero_otro_grupo)
+    _make_evaluacion(comp, estudiante, '3.0')
+    client = auth_client(director_semillero)
+    resp = client.get(f'{URL}{comp.id}/dashboard/')
+    assert resp.status_code == 404, resp.content

@@ -1,5 +1,7 @@
 from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models import Avg, Count
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
@@ -172,3 +174,36 @@ class CompetenciaInvestigativaViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         """Elimina una competencia investigativa."""
         return super().destroy(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary='Dashboard de evaluaciones de la competencia',
+        operation_description=(
+            'Métricas de las evaluaciones de la competencia: promedio del puntaje '
+            'y total de evaluaciones, contando solo las que tienen puntaje (se '
+            'excluyen las de puntaje nulo en ambos cálculos).'
+        ),
+        responses={
+            200: openapi.Response('Métricas del dashboard'),
+            403: openapi.Response('No tiene permisos'),
+            404: openapi.Response('Competencia no encontrada'),
+        },
+        tags=['Competencias Investigativas'],
+    )
+    @action(detail=True, methods=['get'], url_path='dashboard')
+    def dashboard(self, request, pk=None):
+        """Devuelve el promedio de puntaje y el total de evaluaciones calificadas.
+
+        Usa ``get_object()``, de modo que el filtro de queryset por rol y
+        ``has_object_permission`` ya acotan la visibilidad. Excluye las
+        evaluaciones con ``puntaje`` nulo tanto del promedio como del conteo.
+        """
+        competencia = self.get_object()
+        agg = competencia.evaluaciones.filter(puntaje__isnull=False).aggregate(
+            promedio=Avg('puntaje'), total=Count('id'),
+        )
+        promedio = agg['promedio']
+        data = {
+            'promedio_competencias': round(float(promedio), 2) if promedio is not None else 0.0,
+            'total_evaluaciones': agg['total'] or 0,
+        }
+        return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)
