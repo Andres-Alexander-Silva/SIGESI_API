@@ -339,6 +339,19 @@ class ExportarReportesPermission(BasePermission):
         ])
 
 
+class FormatosDocentePermission(BasePermission):
+    """Solo Admin y Director de Semillero pueden descargar los formatos para docentes."""
+
+    def has_permission(self, request, view):
+        """Permite el acceso únicamente a administradores y directores de semillero."""
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+        ])
+
+
 class ProduccionAcademicaRolePermission(BasePermission):
     """
     Producción Académica:

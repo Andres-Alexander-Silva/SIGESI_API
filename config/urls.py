@@ -53,6 +53,7 @@ urlpatterns = [
     path('api/v1/core/', include('apps.sigesi.routers.core.inscripciones_urls')),
     path('api/v1/reportes/', include('apps.sigesi.routers.reports.reportes_urls')),
     path('api/v1/reportes/exportar/', include('apps.sigesi.routers.reports.export_urls')),
+    path('api/v1/informes/', include('apps.sigesi.routers.reports.formatos_docente_urls')),
     # Swagger / Documentación
     path('swagger/', schema_view.with_ui('swagger',
          cache_timeout=0), name='schema-swagger-ui'),

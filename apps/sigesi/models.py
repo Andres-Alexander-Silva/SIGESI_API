@@ -79,6 +79,11 @@ class User(AbstractUser):
         LIDER_ESTUDIANTIL = 'lider_estudiantil', 'Líder Estudiantil'
         ESTUDIANTE = 'estudiante', 'Estudiante'
 
+    class TipoVinculacionChoices(models.TextChoices):
+        """Tipo de vinculación institucional de un director de semillero."""
+        CATEDRATICO = 'catedratico', 'Catedrático'
+        PLANTA = 'planta', 'Planta'
+
     cedula = models.CharField(
         max_length=20, unique=True, verbose_name='Cédula')
     telefono = models.CharField(
@@ -93,6 +98,15 @@ class User(AbstractUser):
     )
     codigo_estudiantil = models.CharField(
         max_length=20, blank=True, verbose_name='Código estudiantil')
+    tipo_vinculacion = models.CharField(
+        max_length=20,
+        choices=TipoVinculacionChoices.choices,
+        blank=True,
+        null=True,
+        verbose_name='Tipo de vinculación',
+        help_text='Tipo de vinculación del director de semillero (catedrático o planta). '
+                  'Determina el conjunto de formatos institucionales que puede descargar.',
+    )
     programa_academico = models.ForeignKey(
         'ProgramaAcademico',
         on_delete=models.SET_NULL,
@@ -126,6 +140,9 @@ class User(AbstractUser):
         if (self.RolChoices.LIDER_ESTUDIANTIL in self.roles
                 and self.RolChoices.ESTUDIANTE not in self.roles):
             self.roles = list(self.roles) + [self.RolChoices.ESTUDIANTE]
+        # Invariante: solo un director de semillero puede tener tipo de vinculación.
+        if self.RolChoices.DIRECTOR_SEMILLERO not in self.roles:
+            self.tipo_vinculacion = None
         super().save(*args, **kwargs)
 
     # ---- Helpers multi-rol ----
