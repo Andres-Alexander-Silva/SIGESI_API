@@ -5,6 +5,20 @@ from django.db.models import Q
 from apps.sigesi.models import User, Menu, Opcion, Permiso
 
 
+def validar_tipo_vinculacion(roles, tipo_vinculacion):
+    """Rechaza ``tipo_vinculacion`` si el usuario no es director de semillero.
+
+    ``roles`` es la lista efectiva de roles (del payload o de la instancia) y
+    ``tipo_vinculacion`` el valor entrante. Lanza ``ValidationError`` (→400) si se
+    envía un valor y el usuario no tiene el rol ``director_semillero``. No hace
+    nada si ``tipo_vinculacion`` es nulo/vacío.
+    """
+    if tipo_vinculacion and User.RolChoices.DIRECTOR_SEMILLERO not in (roles or []):
+        raise serializers.ValidationError(
+            {'tipo_vinculacion': 'Solo un director de semillero puede tener tipo de vinculación.'}
+        )
+
+
 # ---------------------------------------------------------------
 # Serializers para el perfil de permisos del usuario autenticado
 # ---------------------------------------------------------------
@@ -82,9 +96,9 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'correo_personal', 'is_graduated', 
+            'id', 'username', 'email', 'correo_personal', 'is_graduated',
             'first_name', 'last_name', 'cedula', 'telefono', 'foto', 'roles',
-            'codigo_estudiantil', 'programa_academico',
+            'codigo_estudiantil', 'tipo_vinculacion', 'programa_academico',
             'is_active', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -127,9 +141,15 @@ class UserCreateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'correo_personal', 'is_graduated',
             'password', 'first_name', 'last_name', 'cedula',
-            'telefono', 'roles', 'codigo_estudiantil', 'programa_academico',
+            'telefono', 'roles', 'codigo_estudiantil', 'tipo_vinculacion',
+            'programa_academico',
         ]
         read_only_fields = ['id']
+
+    def validate(self, attrs):
+        """Valida que solo un director de semillero reciba ``tipo_vinculacion``."""
+        validar_tipo_vinculacion(attrs.get('roles', []), attrs.get('tipo_vinculacion'))
+        return attrs
 
     def create(self, validated_data):
         password = validated_data.pop('password')
@@ -158,8 +178,20 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'username', 'email', 'correo_personal', 'is_graduated',
             'first_name', 'last_name', 'cedula', 'telefono', 'foto', 'roles',
-            'codigo_estudiantil', 'programa_academico', 'is_active',
+            'codigo_estudiantil', 'tipo_vinculacion', 'programa_academico', 'is_active',
         ]
+
+    def validate(self, attrs):
+        """Valida que solo un director de semillero reciba ``tipo_vinculacion``.
+
+        En ``PATCH`` parcial ``roles`` puede no venir en el payload; en ese caso
+        se usan los roles actuales de la instancia. Solo se valida cuando el
+        cliente envía explícitamente ``tipo_vinculacion``.
+        """
+        if 'tipo_vinculacion' in attrs:
+            roles = attrs.get('roles', getattr(self.instance, 'roles', []) or [])
+            validar_tipo_vinculacion(roles, attrs.get('tipo_vinculacion'))
+        return attrs
 
     def validate_email(self, value):
         user = self.instance

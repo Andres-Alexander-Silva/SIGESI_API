@@ -1,4 +1,6 @@
 from django.contrib.auth.models import AbstractUser
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.conf import settings
@@ -79,6 +81,11 @@ class User(AbstractUser):
         LIDER_ESTUDIANTIL = 'lider_estudiantil', 'Líder Estudiantil'
         ESTUDIANTE = 'estudiante', 'Estudiante'
 
+    class TipoVinculacionChoices(models.TextChoices):
+        """Tipo de vinculación institucional de un director de semillero."""
+        CATEDRATICO = 'catedratico', 'Catedrático'
+        PLANTA = 'planta', 'Planta'
+
     cedula = models.CharField(
         max_length=20, unique=True, verbose_name='Cédula')
     telefono = models.CharField(
@@ -93,6 +100,15 @@ class User(AbstractUser):
     )
     codigo_estudiantil = models.CharField(
         max_length=20, blank=True, verbose_name='Código estudiantil')
+    tipo_vinculacion = models.CharField(
+        max_length=20,
+        choices=TipoVinculacionChoices.choices,
+        blank=True,
+        null=True,
+        verbose_name='Tipo de vinculación',
+        help_text='Tipo de vinculación del director de semillero (catedrático o planta). '
+                  'Determina el conjunto de formatos institucionales que puede descargar.',
+    )
     programa_academico = models.ForeignKey(
         'ProgramaAcademico',
         on_delete=models.SET_NULL,
@@ -126,6 +142,9 @@ class User(AbstractUser):
         if (self.RolChoices.LIDER_ESTUDIANTIL in self.roles
                 and self.RolChoices.ESTUDIANTE not in self.roles):
             self.roles = list(self.roles) + [self.RolChoices.ESTUDIANTE]
+        # Invariante: solo un director de semillero puede tener tipo de vinculación.
+        if self.RolChoices.DIRECTOR_SEMILLERO not in self.roles:
+            self.tipo_vinculacion = None
         super().save(*args, **kwargs)
 
     # ---- Helpers multi-rol ----
@@ -1291,8 +1310,59 @@ class ProduccionAcademica(models.Model):
         return f"[{self.get_tipo_display()}] {self.titulo}"
 
 
+class Evento(models.Model):
+    """Evento académico en el que pueden participar estudiantes y líderes."""
+
+    class ModalidadChoices(models.TextChoices):
+        PRESENCIAL = 'presencial', 'Presencial'
+        VIRTUAL = 'virtual', 'Virtual'
+        HIBRIDO = 'hibrido', 'Híbrido'
+
+    class EstadoChoices(models.TextChoices):
+        ACTIVO = 'activo', 'Activo'
+        FINALIZADO = 'finalizado', 'Finalizado'
+        CANCELADO = 'cancelado', 'Cancelado'
+
+    nombre = models.CharField(max_length=300, verbose_name='Nombre del evento')
+    descripcion = models.TextField(blank=True, verbose_name='Descripción')
+    modalidad = models.CharField(
+        max_length=20,
+        choices=ModalidadChoices.choices,
+        default=ModalidadChoices.PRESENCIAL,
+        verbose_name='Modalidad'
+    )
+    lugar = models.CharField(max_length=200, blank=True, verbose_name='Lugar')
+    fecha_inicio = models.DateField(verbose_name='Fecha de inicio')
+    fecha_fin = models.DateField(
+        null=True, blank=True, verbose_name='Fecha de fin')
+    estado = models.CharField(
+        max_length=20,
+        choices=EstadoChoices.choices,
+        default=EstadoChoices.ACTIVO,
+        verbose_name='Estado'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Evento'
+        verbose_name_plural = 'Eventos'
+        ordering = ['-fecha_inicio']
+
+    def __str__(self):
+        return self.nombre
+
+
 class ParticipacionEvento(models.Model):
-    """Registro de participación en eventos académicos."""
+    """Registro de participación de un usuario en un evento académico.
+
+    Cada usuario puede participar en muchos eventos, pero solo una vez en cada
+    uno (``unique_together`` sobre ``participante`` y ``evento``). Los datos
+    descriptivos del evento (lugar, fechas) viven en :class:`Evento`. La
+    participación puede respaldarse en la :class:`Postulacion` aceptada que la
+    habilitó (``postulacion``), cerrando el flujo Evento → Convocatoria →
+    Postulación → Participación.
+    """
 
     class TipoParticipacionChoices(models.TextChoices):
         PONENTE = 'ponente', 'Ponente'
@@ -1308,11 +1378,12 @@ class ParticipacionEvento(models.Model):
         related_name='participaciones',
         verbose_name='Producción asociada'
     )
-    evento = models.CharField(max_length=300, verbose_name='Nombre del evento')
-    lugar = models.CharField(max_length=200, blank=True, verbose_name='Lugar')
-    fecha_inicio = models.DateField(verbose_name='Fecha de inicio')
-    fecha_fin = models.DateField(
-        null=True, blank=True, verbose_name='Fecha de fin')
+    evento = models.ForeignKey(
+        Evento,
+        on_delete=models.CASCADE,
+        related_name='participaciones',
+        verbose_name='Evento'
+    )
     tipo_participacion = models.CharField(
         max_length=20,
         choices=TipoParticipacionChoices.choices,
@@ -1324,6 +1395,14 @@ class ParticipacionEvento(models.Model):
         related_name='participaciones_eventos',
         verbose_name='Participante'
     )
+    postulacion = models.ForeignKey(
+        'Postulacion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='participaciones',
+        verbose_name='Postulación que respalda la participación'
+    )
     certificado = models.FileField(
         upload_to='eventos/certificados/%Y/', blank=True, null=True, verbose_name='Certificado')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1332,10 +1411,11 @@ class ParticipacionEvento(models.Model):
     class Meta:
         verbose_name = 'Participación en Evento'
         verbose_name_plural = 'Participaciones en Eventos'
-        ordering = ['-fecha_inicio']
+        ordering = ['-created_at']
+        unique_together = ['participante', 'evento']
 
     def __str__(self):
-        return f"{self.participante} - {self.evento}"
+        return f"{self.participante} - {self.evento.nombre}"
 
 
 # ============================================================
@@ -1343,7 +1423,11 @@ class ParticipacionEvento(models.Model):
 # ============================================================
 
 class Convocatoria(models.Model):
-    """Evento o llamado interno/externo con postulación y seguimiento."""
+    """Llamado a postulación asociado a un :class:`Evento`.
+
+    Cada convocatoria pertenece a un evento (``evento``) y abre el periodo en el
+    que los semilleros pueden postularse (:class:`Postulacion`) para asistir.
+    """
 
     class TipoChoices(models.TextChoices):
         INTERNA = 'interna', 'Interna'
@@ -1355,6 +1439,12 @@ class Convocatoria(models.Model):
         EN_EVALUACION = 'en_evaluacion', 'En Evaluación'
         FINALIZADA = 'finalizada', 'Finalizada'
 
+    evento = models.ForeignKey(
+        Evento,
+        on_delete=models.CASCADE,
+        related_name='convocatorias',
+        verbose_name='Evento'
+    )
     titulo = models.CharField(max_length=300, verbose_name='Título')
     descripcion = models.TextField(verbose_name='Descripción')
     tipo = models.CharField(
@@ -1428,6 +1518,16 @@ class Postulacion(models.Model):
     )
     observaciones = models.TextField(blank=True, verbose_name='Observaciones')
     resultado = models.TextField(blank=True, verbose_name='Resultado')
+    aprobado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='postulaciones_resueltas',
+        verbose_name='Resuelta por'
+    )
+    fecha_resolucion = models.DateTimeField(
+        null=True, blank=True, verbose_name='Fecha de resolución')
     fecha_postulacion = models.DateField(
         auto_now_add=True, verbose_name='Fecha de postulación')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1571,3 +1671,73 @@ class Informe(models.Model):
 
     def __str__(self):
         return f"{self.titulo} - {self.semillero} ({self.semestre})"
+
+
+# ============================================================
+# NOTIFICACIONES
+# ============================================================
+
+class Notificacion(models.Model):
+    """Notificación persistente enviada a un usuario sobre un evento académico.
+
+    Una fila por destinatario por evento: el ``unique_together`` deduplica
+    automáticamente si el mismo ``(usuario, tipo, target)`` se emite dos veces
+    (p. ej. un PATCH de Convocatoria que no cambia ``estado`` no debe generar
+    spam). Las filas se persisten siempre; el push por WebSocket es
+    *fire-and-forget* y se registra vía :mod:`apps.sigesi.utils.notifications`.
+    """
+
+    class TipoChoices(models.TextChoices):
+        CONVOCATORIA_CREADA = 'convocatoria_creada', 'Convocatoria creada'
+        CONVOCATORIA_ACTUALIZADA = (
+            'convocatoria_actualizada', 'Convocatoria actualizada')
+        POSTULACION_CREADA = 'postulacion_creada', 'Postulación creada'
+        POSTULACION_ACTUALIZADA = (
+            'postulacion_actualizada', 'Postulación actualizada')
+        PARTICIPACION_CREADA = (
+            'participacion_creada', 'Participación registrada')
+        PARTICIPACION_ACTUALIZADA = (
+            'participacion_actualizada', 'Participación actualizada')
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notificaciones',
+        verbose_name='Usuario destinatario',
+    )
+    tipo = models.CharField(
+        max_length=40, choices=TipoChoices.choices, verbose_name='Tipo')
+    titulo = models.CharField(
+        max_length=200, verbose_name='Título')
+    mensaje = models.TextField(verbose_name='Mensaje')
+    # Referencia genérica al objeto origen (Convocatoria, Postulacion,
+    # ParticipacionEvento). Nulable para mantener flexibilidad.
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Tipo de objeto',
+    )
+    object_id = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name='ID del objeto')
+    target = GenericForeignKey('content_type', 'object_id')
+    leida = models.BooleanField(default=False, verbose_name='Leída')
+    read_at = models.DateTimeField(
+        null=True, blank=True, verbose_name='Leída en')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Notificación'
+        verbose_name_plural = 'Notificaciones'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['usuario', '-created_at']),
+            models.Index(fields=['usuario', 'leida']),
+        ]
+        unique_together = [
+            ('usuario', 'tipo', 'content_type', 'object_id'),
+        ]
+
+    def __str__(self):
+        return f"{self.usuario} · {self.get_tipo_display()}"

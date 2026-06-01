@@ -1,5 +1,6 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from apps.sigesi.models import User, GrupoInvestigacion, Actividad
+from apps.sigesi.utils.alcance import participantes_en_alcance
 
 
 def active_role(request):
@@ -335,6 +336,19 @@ class ExportarReportesPermission(BasePermission):
         return request.user.tiene_alguno_de([
             User.RolChoices.ADMINISTRADOR,
             User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+        ])
+
+
+class FormatosDocentePermission(BasePermission):
+    """Solo Admin y Director de Semillero pueden descargar los formatos para docentes."""
+
+    def has_permission(self, request, view):
+        """Permite el acceso únicamente a administradores y directores de semillero."""
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
             User.RolChoices.DIRECTOR_SEMILLERO,
         ])
 
@@ -851,3 +865,146 @@ class EvaluacionCalificarPermission(BasePermission):
 
     def has_object_permission(self, request, view, obj):
         return obj.evaluador_id == request.user.id
+
+
+class ParticipacionEventoRolePermission(BasePermission):
+    """
+    Control de acceso a nivel de vista y objeto para Participaciones en Eventos.
+    - Administrador: CRUD completo sobre cualquier participación.
+    - Director de Grupo / Director de Semillero / Líder Estudiantil: CRUD completo
+      sobre las participaciones cuyo ``participante`` esté dentro de su alcance
+      (estudiantes/líderes de su grupo/semillero; el líder, además, sobre sí
+      mismo) — ver :func:`participantes_en_alcance`.
+    - Estudiante: solo lectura de sus propias participaciones.
+
+    El alcance por filas (qué participaciones ve cada rol) lo aplica además el
+    ``get_queryset`` de la vista; qué participante puede *agregar* cada actor lo
+    valida el serializer en la creación.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if user.tiene_alguno_de([
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+            User.RolChoices.LIDER_ESTUDIANTIL,
+        ]):
+            return True
+
+        # Estudiante: solo lectura.
+        if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+            return request.method in SAFE_METHODS
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        # Lectura: el alcance por filas lo aplica get_queryset.
+        if request.method in SAFE_METHODS:
+            return True
+
+        # Escritura (update/delete/cargar-certificado): confinada al alcance del
+        # actor sobre el participante de la fila.
+        if user.tiene_alguno_de([
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+            User.RolChoices.LIDER_ESTUDIANTIL,
+        ]):
+            return participantes_en_alcance(user).filter(
+                pk=obj.participante_id).exists()
+
+        return False
+
+
+class ConvocatoriaRolePermission(BasePermission):
+    """Control de acceso a nivel de vista para Convocatorias.
+
+    - Lectura (GET/HEAD/OPTIONS): cualquier usuario autenticado (las
+      convocatorias son anuncios institucionales visibles para todos).
+    - Escritura (POST/PUT/PATCH/DELETE): solo Administrador y Director de Grupo,
+      que son quienes abren convocatorias para un evento.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if request.method in SAFE_METHODS:
+            return True
+
+        return request.user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.DIRECTOR_GRUPO,
+        ])
+
+
+class PostulacionRolePermission(BasePermission):
+    """Control de acceso a nivel de vista y objeto para Postulaciones.
+
+    - Administrador: CRUD total y resolución (aprobar/rechazar).
+    - Director de Semillero: crea/edita/elimina postulaciones de **su** semillero
+      (confinado en ``has_object_permission``); no puede aprobar/rechazar.
+    - Director de Grupo: solo lectura por CRUD, pero **sí** puede aprobar/rechazar
+      las postulaciones de los semilleros de su grupo (acciones ``aprobar`` /
+      ``rechazar``).
+    - Líder Estudiantil / Estudiante: solo lectura.
+
+    El alcance por filas (qué postulaciones ve cada rol) lo aplica además el
+    ``get_queryset`` de la vista.
+    """
+
+    RESOLUCION_ACTIONS = ('aprobar', 'rechazar')
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if request.method in SAFE_METHODS:
+            return True
+
+        # Acciones de resolución: reservadas a Director de Grupo (el objeto se
+        # confina a su grupo en has_object_permission).
+        if getattr(view, 'action', None) in self.RESOLUCION_ACTIONS:
+            return user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO)
+
+        # Resto de escritura (create/update/partial_update/destroy): Director de
+        # Semillero, acotado a su propio semillero en has_object_permission.
+        return user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO)
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if request.method in SAFE_METHODS:
+            return True
+
+        # Resolución (aprobar/rechazar): Director de Grupo dueño del grupo.
+        if getattr(view, 'action', None) in self.RESOLUCION_ACTIONS:
+            return (
+                user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO)
+                and obj.semillero.grupo_investigacion.director_id == user.id
+            )
+
+        # Edición/borrado: Director de Semillero dueño del semillero.
+        return (
+            user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO)
+            and obj.semillero.director_id == user.id
+        )

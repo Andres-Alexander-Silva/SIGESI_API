@@ -14,7 +14,7 @@ COUNTED_MODELS = [
     'EvaluacionProyecto', 'FaseProyecto',
     'HitoEntregable', 'Bitacora', 'Actividad', 'CronogramaProyecto', 'Evidencia',
     'Alerta', 'CompetenciaInvestigativa', 'Rubrica', 'Evaluacion',
-    'PerfilInvestigativo', 'ProduccionAcademica', 'ParticipacionEvento',
+    'PerfilInvestigativo', 'ProduccionAcademica', 'Evento', 'ParticipacionEvento',
     'Postulacion', 'MedicionIndicador', 'Informe',
 ]
 

@@ -31,7 +31,7 @@ from apps.sigesi.models import (
     Proyecto, EvaluacionProyecto, FaseProyecto, HitoEntregable, Bitacora,
     Actividad, CronogramaProyecto, Evidencia, Alerta,
     CompetenciaInvestigativa, Rubrica, Evaluacion, PerfilInvestigativo,
-    ProduccionAcademica, ParticipacionEvento,
+    ProduccionAcademica, Evento, ParticipacionEvento,
     Postulacion, MedicionIndicador, Informe,
     User,
 )
@@ -68,6 +68,7 @@ DEFAULT_TARGETS = {
     'rubricas': 6,
     'evaluaciones': 6,
     'producciones': 6,
+    'eventos': 5,
     'participaciones': 5,
     'postulaciones': 5,
     'mediciones': 6,
@@ -76,7 +77,7 @@ DEFAULT_TARGETS = {
 
 # Orden hoja→raíz para el borrado en --flush.
 FLUSH_ORDER = [
-    MedicionIndicador, Postulacion, ParticipacionEvento, ProduccionAcademica,
+    MedicionIndicador, Postulacion, ParticipacionEvento, Evento, ProduccionAcademica,
     Evaluacion, Rubrica, CompetenciaInvestigativa, PerfilInvestigativo,
     Informe, Alerta, Evidencia, CronogramaProyecto, Actividad, Bitacora,
     HitoEntregable, FaseProyecto, EvaluacionProyecto, Proyecto,
@@ -191,18 +192,8 @@ class Command(BaseCommand):
             meta=Decimal(random.randint(50, 100)),
             unidad_medida=random.choice(['%', 'unidades', 'puntos']),
         ))
-        self._topup('convocatorias', Convocatoria, lambda i: Convocatoria.objects.create(
-            titulo=f"Convocatoria {self.fake.catch_phrase()}"[:300],
-            descripcion=self.fake.paragraph(),
-            tipo=self._choice(Convocatoria.TipoChoices),
-            entidad=self.fake.company(),
-            fecha_apertura=self._rand_date(),
-            fecha_cierre=self._rand_date(),
-            requisitos=self.fake.paragraph(),
-            presupuesto=Decimal(random.randint(1_000_000, 50_000_000)),
-            url=self.fake.url(),
-            estado=self._choice(Convocatoria.EstadoChoices),
-        ))
+        # Las convocatorias se siembran en la fase 9, pues ahora requieren un
+        # Evento (FK no-nula), que se crea en la fase 8.
 
     # ---- 2. usuarios ----
     def _seed_usuarios(self):
@@ -697,23 +688,63 @@ class Command(BaseCommand):
 
         producciones = list(ProduccionAcademica.objects.all())
 
-        def part_factory(i):
-            if not participantes:
-                return None
+        def evento_factory(i):
             ini = self._rand_date()
-            return ParticipacionEvento.objects.create(
-                produccion=random.choice(producciones) if producciones else None,
-                evento=f"Evento {self.fake.catch_phrase()}"[:300],
+            return Evento.objects.create(
+                nombre=f"Evento {self.fake.catch_phrase()}"[:300],
+                descripcion=self.fake.paragraph(),
+                modalidad=self._choice(Evento.ModalidadChoices),
                 lugar=self.fake.city(),
                 fecha_inicio=ini,
                 fecha_fin=ini + timedelta(days=random.randint(1, 5)),
-                tipo_participacion=self._choice(ParticipacionEvento.TipoParticipacionChoices),
-                participante=random.choice(participantes),
+                estado=self._choice(Evento.EstadoChoices),
             )
+        self._topup('eventos', Evento, evento_factory)
+
+        eventos = list(Evento.objects.all())
+
+        def part_factory(i):
+            # Respeta unique_together (participante, evento): reintenta hasta
+            # hallar un par libre; si no lo encuentra, omite esta fila.
+            if not participantes or not eventos:
+                return None
+            for _ in range(10):
+                participante = random.choice(participantes)
+                evento = random.choice(eventos)
+                if ParticipacionEvento.objects.filter(
+                        participante=participante, evento=evento).exists():
+                    continue
+                return ParticipacionEvento.objects.create(
+                    produccion=random.choice(producciones) if producciones else None,
+                    evento=evento,
+                    tipo_participacion=self._choice(ParticipacionEvento.TipoParticipacionChoices),
+                    participante=participante,
+                )
+            return None
         self._topup('participaciones', ParticipacionEvento, part_factory)
 
-    # ---- 9. postulaciones, mediciones, informes ----
+    # ---- 9. convocatorias, postulaciones, mediciones, informes ----
     def _seed_convocatorias_indicadores_informes(self):
+        eventos = list(Evento.objects.all())
+
+        def convocatoria_factory(i):
+            if not eventos:
+                return None
+            return Convocatoria.objects.create(
+                evento=random.choice(eventos),
+                titulo=f"Convocatoria {self.fake.catch_phrase()}"[:300],
+                descripcion=self.fake.paragraph(),
+                tipo=self._choice(Convocatoria.TipoChoices),
+                entidad=self.fake.company(),
+                fecha_apertura=self._rand_date(),
+                fecha_cierre=self._rand_date(),
+                requisitos=self.fake.paragraph(),
+                presupuesto=Decimal(random.randint(1_000_000, 50_000_000)),
+                url=self.fake.url(),
+                estado=self._choice(Convocatoria.EstadoChoices),
+            )
+        self._topup('convocatorias', Convocatoria, convocatoria_factory)
+
         convocatorias = list(Convocatoria.objects.all())
         semilleros = list(Semillero.objects.all())
         proyectos = list(Proyecto.objects.all())
