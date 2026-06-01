@@ -1308,8 +1308,59 @@ class ProduccionAcademica(models.Model):
         return f"[{self.get_tipo_display()}] {self.titulo}"
 
 
+class Evento(models.Model):
+    """Evento académico en el que pueden participar estudiantes y líderes."""
+
+    class ModalidadChoices(models.TextChoices):
+        PRESENCIAL = 'presencial', 'Presencial'
+        VIRTUAL = 'virtual', 'Virtual'
+        HIBRIDO = 'hibrido', 'Híbrido'
+
+    class EstadoChoices(models.TextChoices):
+        ACTIVO = 'activo', 'Activo'
+        FINALIZADO = 'finalizado', 'Finalizado'
+        CANCELADO = 'cancelado', 'Cancelado'
+
+    nombre = models.CharField(max_length=300, verbose_name='Nombre del evento')
+    descripcion = models.TextField(blank=True, verbose_name='Descripción')
+    modalidad = models.CharField(
+        max_length=20,
+        choices=ModalidadChoices.choices,
+        default=ModalidadChoices.PRESENCIAL,
+        verbose_name='Modalidad'
+    )
+    lugar = models.CharField(max_length=200, blank=True, verbose_name='Lugar')
+    fecha_inicio = models.DateField(verbose_name='Fecha de inicio')
+    fecha_fin = models.DateField(
+        null=True, blank=True, verbose_name='Fecha de fin')
+    estado = models.CharField(
+        max_length=20,
+        choices=EstadoChoices.choices,
+        default=EstadoChoices.ACTIVO,
+        verbose_name='Estado'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Evento'
+        verbose_name_plural = 'Eventos'
+        ordering = ['-fecha_inicio']
+
+    def __str__(self):
+        return self.nombre
+
+
 class ParticipacionEvento(models.Model):
-    """Registro de participación en eventos académicos."""
+    """Registro de participación de un usuario en un evento académico.
+
+    Cada usuario puede participar en muchos eventos, pero solo una vez en cada
+    uno (``unique_together`` sobre ``participante`` y ``evento``). Los datos
+    descriptivos del evento (lugar, fechas) viven en :class:`Evento`. La
+    participación puede respaldarse en la :class:`Postulacion` aceptada que la
+    habilitó (``postulacion``), cerrando el flujo Evento → Convocatoria →
+    Postulación → Participación.
+    """
 
     class TipoParticipacionChoices(models.TextChoices):
         PONENTE = 'ponente', 'Ponente'
@@ -1325,11 +1376,12 @@ class ParticipacionEvento(models.Model):
         related_name='participaciones',
         verbose_name='Producción asociada'
     )
-    evento = models.CharField(max_length=300, verbose_name='Nombre del evento')
-    lugar = models.CharField(max_length=200, blank=True, verbose_name='Lugar')
-    fecha_inicio = models.DateField(verbose_name='Fecha de inicio')
-    fecha_fin = models.DateField(
-        null=True, blank=True, verbose_name='Fecha de fin')
+    evento = models.ForeignKey(
+        Evento,
+        on_delete=models.CASCADE,
+        related_name='participaciones',
+        verbose_name='Evento'
+    )
     tipo_participacion = models.CharField(
         max_length=20,
         choices=TipoParticipacionChoices.choices,
@@ -1341,6 +1393,14 @@ class ParticipacionEvento(models.Model):
         related_name='participaciones_eventos',
         verbose_name='Participante'
     )
+    postulacion = models.ForeignKey(
+        'Postulacion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='participaciones',
+        verbose_name='Postulación que respalda la participación'
+    )
     certificado = models.FileField(
         upload_to='eventos/certificados/%Y/', blank=True, null=True, verbose_name='Certificado')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1349,10 +1409,11 @@ class ParticipacionEvento(models.Model):
     class Meta:
         verbose_name = 'Participación en Evento'
         verbose_name_plural = 'Participaciones en Eventos'
-        ordering = ['-fecha_inicio']
+        ordering = ['-created_at']
+        unique_together = ['participante', 'evento']
 
     def __str__(self):
-        return f"{self.participante} - {self.evento}"
+        return f"{self.participante} - {self.evento.nombre}"
 
 
 # ============================================================
@@ -1360,7 +1421,11 @@ class ParticipacionEvento(models.Model):
 # ============================================================
 
 class Convocatoria(models.Model):
-    """Evento o llamado interno/externo con postulación y seguimiento."""
+    """Llamado a postulación asociado a un :class:`Evento`.
+
+    Cada convocatoria pertenece a un evento (``evento``) y abre el periodo en el
+    que los semilleros pueden postularse (:class:`Postulacion`) para asistir.
+    """
 
     class TipoChoices(models.TextChoices):
         INTERNA = 'interna', 'Interna'
@@ -1372,6 +1437,12 @@ class Convocatoria(models.Model):
         EN_EVALUACION = 'en_evaluacion', 'En Evaluación'
         FINALIZADA = 'finalizada', 'Finalizada'
 
+    evento = models.ForeignKey(
+        Evento,
+        on_delete=models.CASCADE,
+        related_name='convocatorias',
+        verbose_name='Evento'
+    )
     titulo = models.CharField(max_length=300, verbose_name='Título')
     descripcion = models.TextField(verbose_name='Descripción')
     tipo = models.CharField(
@@ -1445,6 +1516,16 @@ class Postulacion(models.Model):
     )
     observaciones = models.TextField(blank=True, verbose_name='Observaciones')
     resultado = models.TextField(blank=True, verbose_name='Resultado')
+    aprobado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='postulaciones_resueltas',
+        verbose_name='Resuelta por'
+    )
+    fecha_resolucion = models.DateTimeField(
+        null=True, blank=True, verbose_name='Fecha de resolución')
     fecha_postulacion = models.DateField(
         auto_now_add=True, verbose_name='Fecha de postulación')
     created_at = models.DateTimeField(auto_now_add=True)
