@@ -11,6 +11,10 @@ from apps.sigesi.serializers.core.postulacion_serializer import (
     PostulacionCreateUpdateSerializer,
 )
 from apps.sigesi.decorators.permissions import PostulacionRolePermission
+from apps.sigesi.utils.notifications import (
+    notificar_evento_a_usuarios,
+    _resolve_recipients_postulacion,
+)
 
 
 class PostulacionViewSet(viewsets.ModelViewSet):
@@ -111,10 +115,30 @@ class PostulacionViewSet(viewsets.ModelViewSet):
         tags=['Postulaciones'],
     )
     def create(self, request, *args, **kwargs):
-        """Registra una postulación y responde con su representación de lectura."""
+        """Registra una postulación y notifica a los estudiantes postulados."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         postulacion = serializer.save()
+        # El M2M ``estudiantes`` se setea en el serializer; recargamos con prefetch.
+        postulacion = (
+            Postulacion.objects
+            .select_related('convocatoria', 'semillero')
+            .prefetch_related('estudiantes')
+            .get(pk=postulacion.pk)
+        )
+        destinatarios = _resolve_recipients_postulacion(postulacion).exclude(
+            pk=request.user.pk)
+        if destinatarios.exists():
+            notificar_evento_a_usuarios(
+                destinatarios,
+                tipo='postulacion_creada',
+                titulo='Fuiste postulado a una convocatoria',
+                mensaje=(
+                    f'El semillero "{postulacion.semillero.nombre}" te incluyó '
+                    f'en la postulación a "{postulacion.convocatoria.titulo}".'
+                ),
+                target=postulacion,
+            )
         return Response(
             {
                 'message': 'Postulación registrada con éxito',
@@ -142,8 +166,45 @@ class PostulacionViewSet(viewsets.ModelViewSet):
         tags=['Postulaciones'],
     )
     def partial_update(self, request, *args, **kwargs):
-        """Actualiza parcialmente una postulación."""
-        return super().partial_update(request, *args, **kwargs)
+        """Actualiza parcialmente una postulación; notifica si cambia ``estado``."""
+        postulacion = self.get_object()
+        estado_anterior = postulacion.estado
+        response = super().partial_update(request, *args, **kwargs)
+        postulacion.refresh_from_db()
+        if postulacion.estado != estado_anterior:
+            self._emitir_actualizacion_estado(
+                postulacion, estado_anterior, actor=request.user)
+        return response
+
+    def update(self, request, *args, **kwargs):
+        """Actualiza por completo una postulación; notifica si cambia ``estado``."""
+        postulacion = self.get_object()
+        estado_anterior = postulacion.estado
+        response = super().update(request, *args, **kwargs)
+        postulacion.refresh_from_db()
+        if postulacion.estado != estado_anterior:
+            self._emitir_actualizacion_estado(
+                postulacion, estado_anterior, actor=request.user)
+        return response
+
+    @staticmethod
+    def _emitir_actualizacion_estado(postulacion, estado_anterior, *, actor):
+        """Notifica a los estudiantes de la postulación sobre un cambio de estado."""
+        destinatarios = _resolve_recipients_postulacion(postulacion).exclude(
+            pk=actor.pk)
+        if not destinatarios.exists():
+            return
+        notificar_evento_a_usuarios(
+            destinatarios,
+            tipo='postulacion_actualizada',
+            titulo=f'Postulación {postulacion.get_estado_display()}',
+            mensaje=(
+                f'La postulación del semillero "{postulacion.semillero.nombre}" '
+                f'a "{postulacion.convocatoria.titulo}" cambió de '
+                f'"{estado_anterior}" a "{postulacion.estado}".'
+            ),
+            target=postulacion,
+        )
 
     @swagger_auto_schema(
         operation_summary='Eliminar postulación',
@@ -184,6 +245,7 @@ class PostulacionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        estado_anterior = postulacion.estado
         postulacion.estado = nuevo_estado
         postulacion.aprobado_por = user
         postulacion.fecha_resolucion = timezone.now()
@@ -195,6 +257,9 @@ class PostulacionViewSet(viewsets.ModelViewSet):
             'estado', 'aprobado_por', 'fecha_resolucion', 'resultado',
             'observaciones', 'updated_at',
         ])
+        # Notifica a los estudiantes (excluye al resolutor: admin o director_grupo).
+        self._emitir_actualizacion_estado(
+            postulacion, estado_anterior, actor=user)
         return postulacion
 
     @swagger_auto_schema(

@@ -6,6 +6,18 @@ from asgiref.sync import async_to_sync
 logger = logging.getLogger(__name__)
 
 
+# Nombre del grupo Channel Layer al que se suscribe PermisosConsumer por
+# usuario. Coincide con el usado en ``apps.sigesi/consumers.py`` (constructor
+# ``self.group_name = f'permisos_user_{self.user_id}'``) y se conserva por
+# compatibilidad con clientes ya suscritos; el consumer ahora emite también el
+# tipo de evento ``evento_notification`` en este mismo grupo.
+GROUP_PERMISOS_TEMPLATE = 'permisos_user_{user_id}'
+
+# Tipo de evento que el consumer reenvía como ``evento_notification`` en
+# notif_evento. Las vistas lo incluyen en el ``type`` del ``group_send``.
+EVENTO_NOTIFICATION_TYPE = 'evento_notification'
+
+
 def notificar_actualizacion_permisos(user_id, roles=None, menus_data=None, mensaje="Tu acceso ha sido actualizado"):
     """
     Envía una notificación en tiempo real a un usuario sobre la actualización de sus permisos.
@@ -21,7 +33,7 @@ def notificar_actualizacion_permisos(user_id, roles=None, menus_data=None, mensa
     """
     try:
         channel_layer = get_channel_layer()
-        group_name = f'permisos_user_{user_id}'
+        group_name = GROUP_PERMISOS_TEMPLATE.format(user_id=user_id)
         
         # Crear el payload de la notificación
         event_data = {
@@ -143,3 +155,132 @@ def notificar_cambios_permisos_multiples(rol):
             
     except Exception as e:
         logger.error(f"Error al notificar cambios de permisos múltiples: {str(e)}")
+
+
+# =====================================================================
+# Notificaciones de eventos del flujo académico
+# (Convocatoria / Postulación / ParticipaciónEvento)
+# =====================================================================
+
+def _push_event_notification(user_id, notificacion):
+    """Envía por canal WebSocket el evento ``evento_notification`` a un usuario.
+
+    ``notificacion`` es un dict ligero (no un modelo serializado) que se
+    reenvía al cliente para refrescar su bandeja en tiempo real. **Falla en
+    silencio** (solo loguea): la notificación ya quedó persistida, por lo que
+    una falla de push no debe romper el flujo de la petición que la generó.
+    """
+    try:
+        channel_layer = get_channel_layer()
+        group_name = GROUP_PERMISOS_TEMPLATE.format(user_id=user_id)
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                'type': EVENTO_NOTIFICATION_TYPE,
+                'notificacion': notificacion,
+                'timestamp': timezone.now().isoformat(),
+            },
+        )
+    except Exception as e:
+        logger.error(
+            f"Error al hacer push de evento_notification al usuario {user_id}: {e}")
+
+
+def _serialize_notificacion(notif):
+    """Devuelve el dict ligero que viaja al cliente vía WebSocket.
+
+    Incluye un ``target`` mínimo ``{kind, id}`` resuelto a partir del
+    ``content_type``; el cliente puede refetch el detalle por su endpoint
+    REST correspondiente.
+    """
+    return {
+        'id': notif.id,
+        'tipo': notif.tipo,
+        'titulo': notif.titulo,
+        'mensaje': notif.mensaje,
+        'leida': notif.leida,
+        'created_at': notif.created_at.isoformat() if notif.created_at else None,
+        'target': (
+            {'kind': notif.content_type.model, 'id': notif.object_id}
+            if notif.content_type_id and notif.object_id else None
+        ),
+    }
+
+
+def notificar_evento_a_usuarios(usuarios_qs, *, tipo, titulo, mensaje, target=None):
+    """Crea (idempotente) una notificación por usuario y la empuja por WS.
+
+    Args:
+        usuarios_qs: queryset/iterable de ``User`` destinatarios.
+        tipo: valor de ``Notificacion.TipoChoices`` (p. ej. ``'convocatoria_creada'``).
+        titulo: encabezado corto (se muestra en la lista y en el toast).
+        mensaje: cuerpo legible.
+        target: instancia modelo opcional (Convocatoria, Postulacion,
+            ParticipacionEvento, …). Se resuelve su ``content_type`` para
+            soportar dedupe por ``(usuario, tipo, content_type, object_id)``
+            y para que el cliente pueda navegar al detalle.
+
+    Returns:
+        Lista de ``Notificacion`` creadas (vacía si todos los destinatarios ya
+        tenían la misma notificación por dedupe).
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from apps.sigesi.models import Notificacion
+
+    ct = None
+    obj_id = None
+    if target is not None:
+        ct = ContentType.objects.get_for_model(target.__class__)
+        obj_id = target.pk
+
+    creadas = []
+    for usuario in usuarios_qs:
+        defaults = {
+            'titulo': titulo,
+            'mensaje': mensaje,
+            'leida': False,
+        }
+        # Dedupe: el mismo evento dirigido al mismo usuario una sola vez.
+        lookup = {
+            'usuario': usuario,
+            'tipo': tipo,
+            'content_type': ct,
+            'object_id': obj_id,
+        }
+        notif, created = Notificacion.objects.update_or_create(
+            defaults=defaults, **lookup)
+        if created:
+            _push_event_notification(usuario.id, _serialize_notificacion(notif))
+        creadas.append(notif)
+    return creadas
+
+
+def _resolve_recipients_convocatoria(*, excluir=None):
+    """Devuelve los usuarios con rol ``director_semillero`` activos.
+
+    Excluye al actor cuando se pasa ``excluir`` para evitar la auto-notificación
+    (p. ej. un director_semillero que crea una convocatoria en su nombre).
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    qs = User.objects.filter(
+        roles__contains=['director_semillero'], is_active=True)
+    if excluir is not None:
+        qs = qs.exclude(pk=excluir.pk)
+    return qs
+
+
+def _resolve_recipients_postulacion(postulacion):
+    """Devuelve los estudiantes matriculados en la postulación.
+
+    Se excluye al actor cuando coincide con uno de los destinatarios (p. ej.
+    un estudiante que crea su propia postulación, en flujos donde aplique).
+    """
+    return postulacion.estudiantes.all()
+
+
+def _resolve_recipients_participacion(participacion):
+    """Devuelve el participante de la participación (un único ``User``)."""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    return User.objects.filter(pk=participacion.participante_id)

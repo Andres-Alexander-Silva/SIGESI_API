@@ -9,6 +9,10 @@ from apps.sigesi.serializers.core.convocatoria_serializer import (
     ConvocatoriaCreateUpdateSerializer,
 )
 from apps.sigesi.decorators.permissions import ConvocatoriaRolePermission
+from apps.sigesi.utils.notifications import (
+    notificar_evento_a_usuarios,
+    _resolve_recipients_convocatoria,
+)
 
 
 class ConvocatoriaViewSet(viewsets.ModelViewSet):
@@ -67,10 +71,22 @@ class ConvocatoriaViewSet(viewsets.ModelViewSet):
         tags=['Convocatorias'],
     )
     def create(self, request, *args, **kwargs):
-        """Crea una convocatoria (Administrador / Director de Grupo) y responde con su lectura."""
+        """Crea una convocatoria (Administrador / Director de Grupo) y notifica a director_semilleros."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         convocatoria = serializer.save()
+        # Notificación: notificar a todos los director_semillero (excepto al actor).
+        notificar_evento_a_usuarios(
+            _resolve_recipients_convocatoria(excluir=request.user),
+            tipo='convocatoria_creada',
+            titulo=f'Nueva convocatoria: {convocatoria.titulo}',
+            mensaje=(
+                f'Se abrió la convocatoria "{convocatoria.titulo}" para el '
+                f'evento "{convocatoria.evento.nombre}". '
+                f'Cierre: {convocatoria.fecha_cierre}.'
+            ),
+            target=convocatoria,
+        )
         return Response(
             {
                 'message': 'Convocatoria creada con éxito',
@@ -87,8 +103,15 @@ class ConvocatoriaViewSet(viewsets.ModelViewSet):
         tags=['Convocatorias'],
     )
     def update(self, request, *args, **kwargs):
-        """Actualiza por completo una convocatoria (Administrador / Director de Grupo)."""
-        return super().update(request, *args, **kwargs)
+        """Actualiza por completo una convocatoria; notifica solo si cambia ``estado``."""
+        convocatoria = self.get_object()
+        estado_anterior = convocatoria.estado
+        response = super().update(request, *args, **kwargs)
+        convocatoria.refresh_from_db()
+        if convocatoria.estado != estado_anterior:
+            self._emitir_actualizacion(
+                convocatoria, estado_anterior, actor=request.user)
+        return response
 
     @swagger_auto_schema(
         operation_summary='Actualizar convocatoria (parcial)',
@@ -98,8 +121,29 @@ class ConvocatoriaViewSet(viewsets.ModelViewSet):
         tags=['Convocatorias'],
     )
     def partial_update(self, request, *args, **kwargs):
-        """Actualiza parcialmente una convocatoria (Administrador / Director de Grupo)."""
-        return super().partial_update(request, *args, **kwargs)
+        """Actualiza parcialmente; notifica solo si cambia ``estado``."""
+        convocatoria = self.get_object()
+        estado_anterior = convocatoria.estado
+        response = super().partial_update(request, *args, **kwargs)
+        convocatoria.refresh_from_db()
+        if convocatoria.estado != estado_anterior:
+            self._emitir_actualizacion(
+                convocatoria, estado_anterior, actor=request.user)
+        return response
+
+    @staticmethod
+    def _emitir_actualizacion(convocatoria, estado_anterior, *, actor):
+        """Notifica a director_semilleros de un cambio de estado en la convocatoria."""
+        notificar_evento_a_usuarios(
+            _resolve_recipients_convocatoria(excluir=actor),
+            tipo='convocatoria_actualizada',
+            titulo=f'Convocatoria actualizada: {convocatoria.titulo}',
+            mensaje=(
+                f'La convocatoria "{convocatoria.titulo}" cambió de estado '
+                f'"{estado_anterior}" a "{convocatoria.estado}".'
+            ),
+            target=convocatoria,
+        )
 
     @swagger_auto_schema(
         operation_summary='Eliminar convocatoria',

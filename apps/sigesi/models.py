@@ -1,4 +1,6 @@
 from django.contrib.auth.models import AbstractUser
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.conf import settings
@@ -1669,3 +1671,73 @@ class Informe(models.Model):
 
     def __str__(self):
         return f"{self.titulo} - {self.semillero} ({self.semestre})"
+
+
+# ============================================================
+# NOTIFICACIONES
+# ============================================================
+
+class Notificacion(models.Model):
+    """Notificación persistente enviada a un usuario sobre un evento académico.
+
+    Una fila por destinatario por evento: el ``unique_together`` deduplica
+    automáticamente si el mismo ``(usuario, tipo, target)`` se emite dos veces
+    (p. ej. un PATCH de Convocatoria que no cambia ``estado`` no debe generar
+    spam). Las filas se persisten siempre; el push por WebSocket es
+    *fire-and-forget* y se registra vía :mod:`apps.sigesi.utils.notifications`.
+    """
+
+    class TipoChoices(models.TextChoices):
+        CONVOCATORIA_CREADA = 'convocatoria_creada', 'Convocatoria creada'
+        CONVOCATORIA_ACTUALIZADA = (
+            'convocatoria_actualizada', 'Convocatoria actualizada')
+        POSTULACION_CREADA = 'postulacion_creada', 'Postulación creada'
+        POSTULACION_ACTUALIZADA = (
+            'postulacion_actualizada', 'Postulación actualizada')
+        PARTICIPACION_CREADA = (
+            'participacion_creada', 'Participación registrada')
+        PARTICIPACION_ACTUALIZADA = (
+            'participacion_actualizada', 'Participación actualizada')
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notificaciones',
+        verbose_name='Usuario destinatario',
+    )
+    tipo = models.CharField(
+        max_length=40, choices=TipoChoices.choices, verbose_name='Tipo')
+    titulo = models.CharField(
+        max_length=200, verbose_name='Título')
+    mensaje = models.TextField(verbose_name='Mensaje')
+    # Referencia genérica al objeto origen (Convocatoria, Postulacion,
+    # ParticipacionEvento). Nulable para mantener flexibilidad.
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name='Tipo de objeto',
+    )
+    object_id = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name='ID del objeto')
+    target = GenericForeignKey('content_type', 'object_id')
+    leida = models.BooleanField(default=False, verbose_name='Leída')
+    read_at = models.DateTimeField(
+        null=True, blank=True, verbose_name='Leída en')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Notificación'
+        verbose_name_plural = 'Notificaciones'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['usuario', '-created_at']),
+            models.Index(fields=['usuario', 'leida']),
+        ]
+        unique_together = [
+            ('usuario', 'tipo', 'content_type', 'object_id'),
+        ]
+
+    def __str__(self):
+        return f"{self.usuario} · {self.get_tipo_display()}"

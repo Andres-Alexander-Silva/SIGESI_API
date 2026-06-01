@@ -106,6 +106,27 @@ class PermisosConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.error(f"Error enviando notificación: {str(e)}")
 
+    async def evento_notification(self, event):
+        """
+        Manejador de evento que recibe notificaciones del flujo académico
+        (Convocatoria, Postulación, ParticipaciónEvento) emitidas por
+        ``apps.sigesi.utils.notifications.notificar_evento_a_usuarios``.
+
+        El cliente filtra por el campo ``type`` (``permisos_update`` vs
+        ``evento_notification``) y muestra el ``notificacion`` en su bandeja.
+        """
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'evento_notification',
+                'action': 'new',
+                'notificacion': event.get('notificacion', {}),
+                'timestamp': event.get('timestamp'),
+            }))
+            logger.info(f"📤 evento_notification enviada a {self.user_id}")
+        except Exception as e:
+            logger.error(
+                f"Error enviando evento_notification: {str(e)}")
+
     @database_sync_to_async
     def _validate_token_and_get_user(self, token, user_id):
         """
