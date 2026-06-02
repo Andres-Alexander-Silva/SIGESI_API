@@ -1741,3 +1741,75 @@ class Notificacion(models.Model):
 
     def __str__(self):
         return f"{self.usuario} · {self.get_tipo_display()}"
+
+
+# ============================================================
+# AUDITORÍA Y TRAZABILIDAD
+# ============================================================
+
+class RegistroAuditoria(models.Model):
+    """Traza histórica institucional de la actividad de usuarios autenticados.
+
+    Cada fila registra una operación de escritura (creación/actualización/
+    eliminación) o un evento de autenticación, junto con el usuario que la
+    ejecutó, su **rol activo** (claim ``role`` del token), el módulo afectado y
+    metadatos de la petición (método, ruta, estado, IP, agente). Las filas las
+    genera automáticamente :class:`apps.sigesi.middleware.audit_middleware.AuditoriaMiddleware`;
+    no se crean ni editan vía API (el endpoint es de solo lectura y solo-admin).
+
+    ``usuario`` es ``SET_NULL`` y ``usuario_email`` guarda una copia del correo,
+    de modo que la traza sobreviva al borrado del usuario (persistencia histórica
+    e identificación permanente).
+    """
+
+    class AccionChoices(models.TextChoices):
+        ACCESO = 'acceso', 'Acceso al sistema'
+        AUTENTICACION = 'autenticacion', 'Autenticación'
+        CREACION = 'creacion', 'Creación'
+        ACTUALIZACION = 'actualizacion', 'Actualización'
+        ELIMINACION = 'eliminacion', 'Eliminación'
+        CONSULTA = 'consulta', 'Consulta'
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='registros_auditoria',
+        verbose_name='Usuario',
+    )
+    usuario_email = models.CharField(
+        max_length=254, blank=True, verbose_name='Correo del usuario',
+        help_text='Copia del correo institucional (o personal) al momento del evento.')
+    rol_activo = models.CharField(
+        max_length=30, blank=True, verbose_name='Rol activo',
+        help_text='Rol seleccionado en el token (claim role) al ejecutar la acción.')
+    accion = models.CharField(
+        max_length=20, choices=AccionChoices.choices, verbose_name='Acción')
+    modulo = models.CharField(
+        max_length=80, verbose_name='Módulo',
+        help_text='Recurso afectado, inferido de la URL (p. ej. actividades).')
+    metodo_http = models.CharField(max_length=10, verbose_name='Método HTTP')
+    ruta = models.CharField(max_length=255, verbose_name='Ruta')
+    status_code = models.PositiveSmallIntegerField(verbose_name='Código de estado')
+    object_id = models.CharField(
+        max_length=64, blank=True, verbose_name='ID del objeto',
+        help_text='PK del recurso afectado cuando puede inferirse de la URL.')
+    ip = models.GenericIPAddressField(
+        null=True, blank=True, verbose_name='Dirección IP')
+    user_agent = models.TextField(blank=True, verbose_name='Agente de usuario')
+    fecha = models.DateTimeField(
+        auto_now_add=True, db_index=True, verbose_name='Fecha')
+
+    class Meta:
+        verbose_name = 'Registro de Auditoría'
+        verbose_name_plural = 'Registros de Auditoría'
+        ordering = ['-fecha']
+        indexes = [
+            models.Index(fields=['accion']),
+            models.Index(fields=['modulo']),
+            models.Index(fields=['usuario']),
+        ]
+
+    def __str__(self):
+        return f"{self.fecha:%Y-%m-%d %H:%M} · {self.usuario_email} · {self.accion} {self.modulo}"

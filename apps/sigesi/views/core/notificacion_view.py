@@ -35,6 +35,8 @@ class NotificacionViewSet(
 
     def get_queryset(self):
         """Restringe al usuario autenticado (no se exponen otras bandejas)."""
+        if getattr(self, 'swagger_fake_view', False):
+            return Notificacion.objects.none()
         return (
             Notificacion.objects
             .filter(usuario=self.request.user)

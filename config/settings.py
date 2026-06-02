@@ -64,6 +64,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Auditoría: al final para correr en fase de respuesta con el status_code final.
+    'apps.sigesi.middleware.audit_middleware.AuditoriaMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
