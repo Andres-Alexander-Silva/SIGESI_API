@@ -59,6 +59,7 @@ class EvidenciaViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewsets.ModelV
     """
     ViewSet para manejar el CRUD de Evidencias (Avances).
     """
+    swagger_tags = ['Evidencias']  # Sección de documentación (drf-yasg)
     serializer_class = EvidenciaSerializer
     permission_classes = [permissions.IsAuthenticated, EvidenciaPermission]
     archive_field = 'archivo'

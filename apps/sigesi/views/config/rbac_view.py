@@ -26,7 +26,7 @@ class MenuViewSet(viewsets.ModelViewSet):
             200: MenuSerializer(many=True),
             401: openapi.Response("No autenticado"),
         },
-        tags=["RBAC - Menús"],
+        tags=['RBAC · Menús'],
     )
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -42,7 +42,7 @@ class MenuViewSet(viewsets.ModelViewSet):
             400: openapi.Response("Datos inválidos"),
             401: openapi.Response("No autenticado"),
         },
-        tags=["RBAC - Menús"],
+        tags=['RBAC · Menús'],
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -58,7 +58,7 @@ class MenuViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Menú no encontrado"),
         },
-        tags=["RBAC - Menús"],
+        tags=['RBAC · Menús'],
     )
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -75,7 +75,7 @@ class MenuViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Menú no encontrado"),
         },
-        tags=["RBAC - Menús"],
+        tags=['RBAC · Menús'],
     )
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
@@ -90,7 +90,7 @@ class MenuViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Menú no encontrado"),
         },
-        tags=["RBAC - Menús"],
+        tags=['RBAC · Menús'],
     )
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
@@ -103,7 +103,7 @@ class MenuViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Menú no encontrado"),
         },
-        tags=["RBAC - Menús"],
+        tags=['RBAC · Menús'],
     )
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -126,7 +126,7 @@ class OpcionViewSet(viewsets.ModelViewSet):
             200: OpcionSerializer(many=True),
             401: openapi.Response("No autenticado"),
         },
-        tags=["RBAC - Opciones"],
+        tags=['RBAC · Opciones'],
     )
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -146,7 +146,7 @@ class OpcionViewSet(viewsets.ModelViewSet):
             400: openapi.Response("Datos inválidos"),
             401: openapi.Response("No autenticado"),
         },
-        tags=["RBAC - Opciones"],
+        tags=['RBAC · Opciones'],
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -162,7 +162,7 @@ class OpcionViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Opción no encontrada"),
         },
-        tags=["RBAC - Opciones"],
+        tags=['RBAC · Opciones'],
     )
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -179,7 +179,7 @@ class OpcionViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Opción no encontrada"),
         },
-        tags=["RBAC - Opciones"],
+        tags=['RBAC · Opciones'],
     )
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
@@ -194,7 +194,7 @@ class OpcionViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Opción no encontrada"),
         },
-        tags=["RBAC - Opciones"],
+        tags=['RBAC · Opciones'],
     )
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
@@ -207,7 +207,7 @@ class OpcionViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Opción no encontrada"),
         },
-        tags=["RBAC - Opciones"],
+        tags=['RBAC · Opciones'],
     )
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -230,7 +230,7 @@ class PermisoViewSet(viewsets.ModelViewSet):
             200: PermisoSerializer(many=True),
             401: openapi.Response("No autenticado"),
         },
-        tags=["RBAC - Permisos"],
+        tags=['RBAC · Permisos'],
     )
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -250,7 +250,7 @@ class PermisoViewSet(viewsets.ModelViewSet):
             400: openapi.Response("Datos inválidos"),
             401: openapi.Response("No autenticado"),
         },
-        tags=["RBAC - Permisos"],
+        tags=['RBAC · Permisos'],
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -266,7 +266,7 @@ class PermisoViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Permiso no encontrado"),
         },
-        tags=["RBAC - Permisos"],
+        tags=['RBAC · Permisos'],
     )
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -283,7 +283,7 @@ class PermisoViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Permiso no encontrado"),
         },
-        tags=["RBAC - Permisos"],
+        tags=['RBAC · Permisos'],
     )
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
@@ -298,7 +298,7 @@ class PermisoViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Permiso no encontrado"),
         },
-        tags=["RBAC - Permisos"],
+        tags=['RBAC · Permisos'],
     )
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
@@ -311,7 +311,7 @@ class PermisoViewSet(viewsets.ModelViewSet):
             401: openapi.Response("No autenticado"),
             404: openapi.Response("Permiso no encontrado"),
         },
-        tags=["RBAC - Permisos"],
+        tags=['RBAC · Permisos'],
     )
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()

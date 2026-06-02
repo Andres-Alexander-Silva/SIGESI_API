@@ -28,7 +28,7 @@ class LoginView(APIView):
         operation_summary='Iniciar Sesión',
         request_body=LoginRequestSerializer,
         responses={200: LoginResponseSerializer(), 400: "Credenciales incorrectas"},
-        tags=['Auth']
+        tags=['Autenticación']
     )
     def post(self, request):
         serializer = LoginRequestSerializer(data=request.data)
@@ -93,7 +93,7 @@ class RefreshTokenView(APIView):
             200: RefreshResponseSerializer(),
             401: "Token inválido o expirado",
         },
-        tags=['Auth']
+        tags=['Autenticación']
     )
     def post(self, request):
         serializer = RefreshRequestSerializer(data=request.data)
@@ -131,7 +131,7 @@ class LogoutView(APIView):
             400: "Token inválido",
             401: "No autenticado",
         },
-        tags=['Auth']
+        tags=['Autenticación']
     )
     def post(self, request):
         serializer = LogoutRequestSerializer(data=request.data)

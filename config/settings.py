@@ -146,6 +146,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # DJANGO REST FRAMEWORK
 # ============================================
 REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'apps.sigesi.utils.exception_handler.custom_exception_handler',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'apps.sigesi.middleware.JWTAuthentication',
     ),
@@ -183,11 +184,19 @@ SIMPLE_JWT = {
 # SWAGGER
 # ============================================
 SWAGGER_SETTINGS = {
+    # Organización modular de la documentación (orden de secciones + x-tagGroups).
+    'DEFAULT_GENERATOR_CLASS': 'apps.sigesi.utils.swagger.SigesiSchemaGenerator',
+    'DEFAULT_AUTO_SCHEMA_CLASS': 'apps.sigesi.utils.swagger.SigesiAutoSchema',
     'SECURITY_DEFINITIONS': {
         'Bearer': {
             'type': 'apiKey',
             'name': 'Authorization',
             'in': 'header',
+            'description': (
+                'JWT de acceso. Formato: "Bearer &lt;access_token&gt;". '
+                'El token con rol activo se obtiene en dos pasos: '
+                'POST /api/v1/auth/login/ y luego POST /api/v1/auth/select-role/.'
+            ),
         }
     },
     'USE_SESSION_AUTH': False,

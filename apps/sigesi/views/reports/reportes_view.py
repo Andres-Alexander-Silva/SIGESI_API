@@ -16,6 +16,7 @@ class ReporteAcademicoProyectoList(generics.ListAPIView):
     """
     Consolida información de proyectos incluyendo avances, estado y participación.
     """
+    swagger_tags = ['Reportes']  # Sección de documentación (drf-yasg)
     serializer_class = ReporteAcademicoProyectoSerializer
     permission_classes = [permissions.IsAuthenticated, ReportesAcademicosPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -65,6 +66,7 @@ class ReporteGlobalSemilleroList(generics.ListAPIView):
     """
     Consolida información a nivel de Semillero.
     """
+    swagger_tags = ['Reportes']  # Sección de documentación (drf-yasg)
     serializer_class = ReporteGlobalSemilleroSerializer
     permission_classes = [permissions.IsAuthenticated, ReportesAcademicosPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]

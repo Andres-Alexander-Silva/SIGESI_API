@@ -49,7 +49,7 @@ class GrupoInvestigacionViewSet(viewsets.ModelViewSet):
                 description='Criterio de ordenamiento: `nombre`, `-nombre`, `fecha`, `-fecha`.',
             ),
         ],
-        tags=["Core - Grupos de Investigación"]
+        tags=['Grupos de Investigación']
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
@@ -59,7 +59,7 @@ class GrupoInvestigacionViewSet(viewsets.ModelViewSet):
         operation_description="Crea un nuevo grupo de investigación.",
         request_body=GrupoInvestigacionCreateSerializer,
         responses={201: GrupoInvestigacionSerializer},
-        tags=["Core - Grupos de Investigación"]
+        tags=['Grupos de Investigación']
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -71,7 +71,7 @@ class GrupoInvestigacionViewSet(viewsets.ModelViewSet):
         operation_summary="Obtener grupo de investigación",
         operation_description="Obtiene los detalles de un grupo de investigación.",
         responses={200: GrupoInvestigacionSerializer},
-        tags=["Core - Grupos de Investigación"]
+        tags=['Grupos de Investigación']
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
@@ -81,7 +81,7 @@ class GrupoInvestigacionViewSet(viewsets.ModelViewSet):
         operation_description="Actualiza un grupo de investigación de forma completa.",
         request_body=GrupoInvestigacionUpdateSerializer,
         responses={200: GrupoInvestigacionSerializer},
-        tags=["Core - Grupos de Investigación"]
+        tags=['Grupos de Investigación']
     )
     def update(self, request, *args, **kwargs):
         kwargs['partial'] = False
@@ -96,7 +96,7 @@ class GrupoInvestigacionViewSet(viewsets.ModelViewSet):
         operation_description="Actualiza parcialmente un grupo de investigación.",
         request_body=GrupoInvestigacionUpdateSerializer,
         responses={200: GrupoInvestigacionSerializer},
-        tags=["Core - Grupos de Investigación"]
+        tags=['Grupos de Investigación']
     )
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -108,7 +108,7 @@ class GrupoInvestigacionViewSet(viewsets.ModelViewSet):
     @swagger_auto_schema(
         operation_summary="Eliminar grupo de investigación",
         operation_description="Elimina un grupo de investigación.",
-        tags=["Core - Grupos de Investigación"]
+        tags=['Grupos de Investigación']
     )
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)

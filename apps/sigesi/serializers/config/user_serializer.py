@@ -107,9 +107,38 @@ class UserSerializer(serializers.ModelSerializer):
 class UserCreateSerializer(serializers.ModelSerializer):
     """Serializer para crear un usuario. Encripta la contraseña automáticamente."""
 
+    username = serializers.CharField(
+        error_messages={
+            'required': 'El nombre de usuario es obligatorio.',
+            'blank': 'El nombre de usuario no puede quedar en blanco.',
+        },
+        validators=[
+            UniqueValidator(
+                queryset=User.objects.all(),
+                message='Ya existe un usuario con este nombre de usuario.'
+            ),
+        ]
+    )
+    cedula = serializers.CharField(
+        max_length=20,
+        error_messages={
+            'required': 'La cédula es obligatoria.',
+            'blank': 'La cédula no puede quedar en blanco.',
+            'max_length': 'La cédula no puede superar los 20 caracteres.',
+        },
+        validators=[
+            UniqueValidator(
+                queryset=User.objects.all(),
+                message='Ya existe un usuario registrado con esta cédula.'
+            ),
+        ]
+    )
     email = serializers.EmailField(
         required=False,
         allow_null=True,
+        error_messages={
+            'invalid': 'Ingrese un correo electrónico institucional válido.',
+        },
         validators=[
             RegexValidator(
                 regex=r'^[\w\.-]+@ufps\.edu\.co$',
@@ -121,11 +150,42 @@ class UserCreateSerializer(serializers.ModelSerializer):
             ),
         ]
     )
+    correo_personal = serializers.EmailField(
+        error_messages={
+            'required': 'El correo personal es obligatorio.',
+            'blank': 'El correo personal no puede quedar en blanco.',
+            'invalid': 'Ingrese un correo personal válido.',
+        },
+        validators=[
+            UniqueValidator(
+                queryset=User.objects.all(),
+                message='Ya existe un usuario registrado con este correo personal.'
+            ),
+        ]
+    )
+    roles = serializers.ListField(
+        child=serializers.ChoiceField(
+            choices=User.RolChoices.choices,
+            error_messages={'invalid_choice': 'El rol "{input}" no es válido.'},
+        ),
+        allow_empty=False,
+        error_messages={
+            'required': 'Debe asignar al menos un rol al usuario.',
+            'empty': 'Debe asignar al menos un rol al usuario.',
+            'null': 'Debe asignar al menos un rol al usuario.',
+            'not_a_list': 'Los roles deben enviarse como una lista.',
+        },
+    )
     password = serializers.CharField(
         write_only=True,
         min_length=8,
         style={'input_type': 'password'},
         help_text='Mínimo 8 caracteres.',
+        error_messages={
+            'required': 'La contraseña es obligatoria.',
+            'blank': 'La contraseña no puede quedar en blanco.',
+            'min_length': 'La contraseña debe tener al menos 8 caracteres.',
+        },
     )
     codigo_estudiantil = serializers.CharField(
         required=True,
@@ -162,9 +222,50 @@ class UserCreateSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     """Serializer para actualizar datos del usuario (sin cambiar contraseña)."""
 
+    cedula = serializers.CharField(
+        max_length=20,
+        error_messages={
+            'blank': 'La cédula no puede quedar en blanco.',
+            'max_length': 'La cédula no puede superar los 20 caracteres.',
+        },
+        validators=[
+            UniqueValidator(
+                queryset=User.objects.all(),
+                message='Ya existe un usuario registrado con esta cédula.'
+            ),
+        ]
+    )
+    correo_personal = serializers.EmailField(
+        error_messages={
+            'blank': 'El correo personal no puede quedar en blanco.',
+            'invalid': 'Ingrese un correo personal válido.',
+        },
+        validators=[
+            UniqueValidator(
+                queryset=User.objects.all(),
+                message='Ya existe un usuario registrado con este correo personal.'
+            ),
+        ]
+    )
+    roles = serializers.ListField(
+        required=False,
+        child=serializers.ChoiceField(
+            choices=User.RolChoices.choices,
+            error_messages={'invalid_choice': 'El rol "{input}" no es válido.'},
+        ),
+        allow_empty=False,
+        error_messages={
+            'empty': 'Debe asignar al menos un rol al usuario.',
+            'null': 'Debe asignar al menos un rol al usuario.',
+            'not_a_list': 'Los roles deben enviarse como una lista.',
+        },
+    )
     email = serializers.EmailField(
         required=False,
         allow_null=True,
+        error_messages={
+            'invalid': 'Ingrese un correo electrónico institucional válido.',
+        },
         validators=[
             RegexValidator(
                 regex=r'^[\w\.-]+@ufps\.edu\.co$',
@@ -194,10 +295,16 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         return attrs
 
     def validate_email(self, value):
+        """Rechaza un correo institucional ya usado por otro usuario.
+
+        Solo valida cuando llega un valor no nulo (varios egresados pueden
+        compartir ``email = NULL``). Lanza un error de cadena simple para que la
+        respuesta mantenga la forma estándar ``{"email": ["..."]}``.
+        """
         user = self.instance
-        if User.objects.exclude(pk=user.pk).filter(email=value).exists():
+        if value and User.objects.exclude(pk=user.pk).filter(email=value).exists():
             raise serializers.ValidationError(
-                {'message': 'Ya existe un usuario registrado con este correo electrónico.'}
+                'Ya existe un usuario registrado con este correo electrónico.'
             )
         return value
 

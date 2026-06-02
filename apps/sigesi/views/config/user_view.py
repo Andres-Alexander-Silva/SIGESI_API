@@ -1,5 +1,5 @@
 import openpyxl
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -621,6 +621,7 @@ class UserViewSet(viewsets.ModelViewSet):
             username = _username_unico(base_username)
 
             valid_users_data.append({
+                'fila': row_idx,
                 'username': username,
                 'cedula': cedula,
                 'first_name': nombres,
@@ -633,9 +634,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 'programa_academico_id': programa_academico_id,
             })
 
-        with transaction.atomic():
-            for user_data in valid_users_data:
-                try:
+        # Cada fila se guarda en su propio savepoint: si una viola una
+        # restricción única, solo se descarta esa fila y el resto continúa
+        # (de lo contrario un único IntegrityError abortaría toda la transacción).
+        for user_data in valid_users_data:
+            fila = user_data.get('fila', 'N/A')
+            try:
+                with transaction.atomic():
                     user = User(
                         username=user_data['username'],
                         cedula=user_data['cedula'],
@@ -650,9 +655,20 @@ class UserViewSet(viewsets.ModelViewSet):
                     )
                     user.set_password(user_data['cedula'])
                     user.save()
-                    creados += 1
-                except Exception as e:
-                    errores.append({"fila": "N/A", "error": f"Error guardando al usuario con cédula {user_data['cedula']}: {str(e)}"})
+                creados += 1
+            except IntegrityError:
+                errores.append({
+                    "fila": fila,
+                    "error": (
+                        f"No se pudo crear al usuario con cédula {user_data['cedula']}: "
+                        "ya existe un registro con una cédula, correo o nombre de usuario duplicado."
+                    ),
+                })
+            except Exception as e:
+                errores.append({
+                    "fila": fila,
+                    "error": f"Error guardando al usuario con cédula {user_data['cedula']}: {str(e)}",
+                })
 
         return Response({
             "creados": creados,

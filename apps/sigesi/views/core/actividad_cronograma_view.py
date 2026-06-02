@@ -58,7 +58,7 @@ class ActividadCronogramaViewSet(viewsets.ModelViewSet):
     @swagger_auto_schema(
         operation_summary='Listar actividades de cronograma',
         responses={200: ActividadCronogramaListSerializer(many=True)},
-        tags=['Actividad Cronograma'],
+        tags=['Actividad de Cronograma'],
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
@@ -66,7 +66,7 @@ class ActividadCronogramaViewSet(viewsets.ModelViewSet):
     @swagger_auto_schema(
         operation_summary='Consultar detalle de actividad de cronograma',
         responses={200: ActividadCronogramaListSerializer, 404: 'No encontrada'},
-        tags=['Actividad Cronograma'],
+        tags=['Actividad de Cronograma'],
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
@@ -79,7 +79,7 @@ class ActividadCronogramaViewSet(viewsets.ModelViewSet):
             400: openapi.Response('Errores de validación'),
             403: openapi.Response('No tiene permisos'),
         },
-        tags=['Actividad Cronograma'],
+        tags=['Actividad de Cronograma'],
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -102,7 +102,7 @@ class ActividadCronogramaViewSet(viewsets.ModelViewSet):
             403: 'No tiene permisos',
             404: 'No encontrada',
         },
-        tags=['Actividad Cronograma'],
+        tags=['Actividad de Cronograma'],
     )
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
@@ -116,7 +116,7 @@ class ActividadCronogramaViewSet(viewsets.ModelViewSet):
             403: 'No tiene permisos',
             404: 'No encontrada',
         },
-        tags=['Actividad Cronograma'],
+        tags=['Actividad de Cronograma'],
     )
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
@@ -128,7 +128,7 @@ class ActividadCronogramaViewSet(viewsets.ModelViewSet):
             403: openapi.Response('No tiene permisos'),
             404: openapi.Response('No encontrada'),
         },
-        tags=['Actividad Cronograma'],
+        tags=['Actividad de Cronograma'],
     )
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
