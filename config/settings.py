@@ -146,6 +146,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # DJANGO REST FRAMEWORK
 # ============================================
 REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'apps.sigesi.utils.exception_handler.custom_exception_handler',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'apps.sigesi.middleware.JWTAuthentication',
     ),
