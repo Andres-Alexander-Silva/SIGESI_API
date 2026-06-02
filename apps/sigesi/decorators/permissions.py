@@ -34,6 +34,19 @@ class UserManagementPermission(BasePermission):
         return user.tiene_rol(User.RolChoices.ADMINISTRADOR)
 
 
+class AuditoriaPermission(BasePermission):
+    """Solo el administrador puede consultar la traza de auditoría del sistema."""
+    message = 'Solo el administrador puede consultar la auditoría del sistema.'
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and user.tiene_rol(User.RolChoices.ADMINISTRADOR)
+        )
+
+
 class HasRolePermission(BasePermission):
     """Exige un rol activo válido en el access token.
 

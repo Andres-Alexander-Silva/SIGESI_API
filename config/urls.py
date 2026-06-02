@@ -30,9 +30,12 @@ urlpatterns = [
     path('api/v1/core/', include('apps.sigesi.routers.core.programas_academicos_urls')),
     path('api/v1/config/', include('apps.sigesi.routers.config.rbac_urls')),
     path('api/v1/config/', include('apps.sigesi.routers.config.users_urls')),
+    path('api/v1/config/', include('apps.sigesi.routers.config.auditoria_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.semilleros_urls')),
     # Dashboards — must come BEFORE proyectos_urls so /proyectos/metricas-dashboard/
     # is not shadowed by ProyectoViewSet's detail route /proyectos/{pk}/.
+    # indicadores before dashboard so /dashboard/indicadores/ is matched first.
+    path('api/v1/core/', include('apps.sigesi.routers.core.indicadores_dashboard_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.dashboard_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.proyecto_metrics_urls')),
     # Proyectos
@@ -46,6 +49,7 @@ urlpatterns = [
     path('api/v1/core/', include('apps.sigesi.routers.core.competencias_investigativas_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.perfiles_investigativos_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.evaluaciones_urls')),
+    path('api/v1/core/', include('apps.sigesi.routers.core.produccion_academica_dashboard_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.producciones_academicas_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.eventos_urls')),
     path('api/v1/core/', include('apps.sigesi.routers.core.convocatorias_urls')),
