@@ -22,6 +22,15 @@ from drf_yasg import openapi
 
 from apps.sigesi.models import User
 from apps.sigesi.decorators.permissions import FormatosDocentePermission
+from apps.sigesi.services.formatos_docente_service import (
+    construir_contexto_formato,
+    render_formato_docente,
+)
+
+# Content-type de un documento Word (.docx).
+DOCX_CONTENT_TYPE = (
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+)
 
 
 # Carpeta raíz de los formatos dentro de MEDIA_ROOT.
@@ -166,12 +175,17 @@ class FormularioDocenteDetailView(APIView):
     permission_classes = [FormatosDocentePermission]
 
     @swagger_auto_schema(
-        operation_summary='Descargar un formato individual',
+        operation_summary='Descargar un formato individual con los datos del director',
         operation_description=(
             'Devuelve un formato individual por su nombre (slug), recibido como '
             'parámetro de consulta `form_name`. Valores válidos: `plan-accion-semillero`, '
             '`plan-accion-grupo`, `gestion-semillero`, `solicitud-horas-directores`, '
-            '`control-cumplimiento-produccion`, `informe-mensual`.'
+            '`control-cumplimiento-produccion`, `informe-mensual`.\n\n'
+            'El documento se entrega **pre-diligenciado** con los datos del usuario '
+            'solicitante según su alcance de director de semillero (su semillero, '
+            'grupo, programa y líneas). Un administrador puede indicar `?user=<id>` '
+            'para diligenciar los datos de otro director de semillero; los demás '
+            'roles siempre obtienen sus propios datos.'
         ),
         manual_parameters=[
             openapi.Parameter(
@@ -180,17 +194,29 @@ class FormularioDocenteDetailView(APIView):
                 type=openapi.TYPE_STRING, required=True,
                 enum=list(FORMATOS_DOCENTE.keys()),
             ),
+            openapi.Parameter(
+                'user', openapi.IN_QUERY,
+                description=(
+                    'Solo administrador: ID del director de semillero cuyos datos '
+                    'se inyectan. Si se omite, se usan los datos del solicitante.'
+                ),
+                type=openapi.TYPE_INTEGER, required=False,
+            ),
         ],
         responses={
-            200: openapi.Response('Formato solicitado (descarga adjunta)'),
-            400: openapi.Response('Falta el parámetro form_name'),
+            200: openapi.Response('Formato diligenciado (descarga adjunta)'),
+            400: openapi.Response('Falta el parámetro form_name o "user" inválido'),
             403: openapi.Response('No tiene permisos'),
-            404: openapi.Response('Formato no encontrado'),
+            404: openapi.Response('Formato o usuario no encontrado'),
         },
         tags=['Formatos Docente'],
     )
     def get(self, request):
-        """Resuelve y entrega el formato cuyo slug llega en ``?form_name=`` (insensible a mayúsculas)."""
+        """Resuelve el formato del slug, inyecta los datos del usuario y lo entrega.
+
+        El usuario destino es el solicitante; un administrador puede apuntar a otro
+        director de semillero con ``?user=<id>``. Los demás roles ignoran ``user``.
+        """
         form_name = request.query_params.get('form_name')
         if not form_name:
             return Response(
@@ -211,4 +237,43 @@ class FormularioDocenteDetailView(APIView):
                 {'message': 'El formato no se encuentra disponible.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        return _file_response(abs_path)
+
+        usuario_destino = self._resolver_usuario_destino(request)
+        if isinstance(usuario_destino, Response):
+            return usuario_destino
+
+        contexto = construir_contexto_formato(usuario_destino)
+        buffer = render_formato_docente(abs_path, contexto)
+        return FileResponse(
+            buffer,
+            as_attachment=True,
+            filename=os.path.basename(abs_path),
+            content_type=DOCX_CONTENT_TYPE,
+        )
+
+    @staticmethod
+    def _resolver_usuario_destino(request):
+        """Determina de quién se inyectan los datos.
+
+        Por defecto es el solicitante. Solo el administrador puede apuntar a otro
+        usuario con ``?user=<id>`` (entero válido y existente); devuelve un
+        ``Response`` de error 400/404 si el parámetro es inválido o el usuario no
+        existe. Los roles no administradores ignoran ``?user=``.
+        """
+        raw_user = request.query_params.get('user')
+        if not raw_user or not request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return request.user
+        try:
+            user_id = int(raw_user)
+        except (TypeError, ValueError):
+            return Response(
+                {'message': 'El parámetro "user" debe ser un número entero.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            return User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {'message': 'El usuario especificado no existe.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )

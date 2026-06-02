@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from apps.sigesi.models import MatriculaSemillero, Semillero
 from apps.sigesi.utils.aval import validar_semilleros_avalados
+from apps.sigesi.utils.alcance import semilleros_en_alcance
 
 User = get_user_model()
 
@@ -105,8 +106,16 @@ class InscripcionCreateSerializer(serializers.ModelSerializer):
                     'estudiante': 'Debe indicar el estudiante a inscribir.'
                 })
 
-        # --- Si el usuario es estudiante, no puede inscribir a otra persona ---
-        if user.tiene_rol(User.RolChoices.ESTUDIANTE) and estudiante.id != user.id:
+        # --- Inscribir a OTRA persona requiere un rol de gestión ---
+        # (un usuario que solo es estudiante —aunque por el invariante un líder
+        # también lleve el rol estudiante— únicamente puede autoinscribirse).
+        es_gestor = user.tiene_alguno_de([
+            User.RolChoices.ADMINISTRADOR,
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+            User.RolChoices.LIDER_ESTUDIANTIL,
+        ])
+        if estudiante.id != user.id and not es_gestor:
             raise serializers.ValidationError({
                 'estudiante': 'Un estudiante solo puede inscribirse a sí mismo.'
             })
@@ -140,13 +149,15 @@ class InscripcionCreateSerializer(serializers.ModelSerializer):
                 ]
             })
 
-        # --- Validar alcance del Director de Semillero ---
-        if (user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO)
-                and not user.tiene_rol(User.RolChoices.ADMINISTRADOR)
-                and estudiante.id != user.id):
-            if semillero.director_id != user.id:
+        # --- Validar alcance al inscribir a otra persona ---
+        # Director de Grupo / Director de Semillero / Líder Estudiantil solo
+        # pueden inscribir a otros en los semilleros de su alcance; el estudiante
+        # se autoinscribe a cualquiera (no entra aquí) y el admin no tiene tope.
+        if (estudiante.id != user.id
+                and not user.tiene_rol(User.RolChoices.ADMINISTRADOR)):
+            if not semilleros_en_alcance(user).filter(pk=semillero.pk).exists():
                 raise serializers.ValidationError({
-                    'semillero': 'Solo puede inscribir estudiantes en semilleros que usted dirige.'
+                    'semillero': 'Solo puede inscribir estudiantes en semilleros de su alcance.'
                 })
 
         # --- Validar aval del semillero ---

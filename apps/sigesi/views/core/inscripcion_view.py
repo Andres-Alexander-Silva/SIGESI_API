@@ -2,12 +2,14 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from django.db.models import Q
 from apps.sigesi.models import MatriculaSemillero, User
 from apps.sigesi.serializers.core.inscripcion_serializer import (
     InscripcionListSerializer,
     InscripcionCreateSerializer,
 )
 from apps.sigesi.decorators.permissions import InscripcionRolePermission
+from apps.sigesi.utils.alcance import semilleros_en_alcance
 
 
 class InscripcionViewSet(viewsets.ModelViewSet):
@@ -30,14 +32,16 @@ class InscripcionViewSet(viewsets.ModelViewSet):
         if not user or not user.is_authenticated:
             return MatriculaSemillero.objects.none()
 
-        # Filtrado de queryset según rol
-        if user.tiene_alguno_de([User.RolChoices.ADMINISTRADOR, User.RolChoices.DIRECTOR_GRUPO]):
+        # Filtrado de queryset según el alcance del usuario.
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             qs = MatriculaSemillero.objects.all()
-        elif user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
-            qs = MatriculaSemillero.objects.filter(semillero__director=user)
         else:
-            # Estudiante u otro rol: solo sus propias inscripciones
-            qs = MatriculaSemillero.objects.filter(estudiante=user)
+            # Gestores (director de grupo/semillero, líder) ven las matrículas de
+            # los semilleros de su alcance; además, todos ven las propias.
+            qs = MatriculaSemillero.objects.filter(
+                Q(semillero__in=semilleros_en_alcance(user))
+                | Q(estudiante=user)
+            )
 
         # Filtro opcional por semillero
         semillero_id = self.request.query_params.get('semillero_id')

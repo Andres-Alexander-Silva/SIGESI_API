@@ -3,12 +3,24 @@ from apps.sigesi.models import EvaluacionProyecto, Proyecto
 from apps.sigesi.utils.aval import validar_semilleros_avalados
 
 class EvaluacionProyectoSerializer(serializers.ModelSerializer):
+    """Serializador de Evaluación de Proyecto.
+
+    ``evaluador`` es de solo lectura: lo fija la vista con el usuario autenticado
+    (``perform_create``), nunca el cliente. Expone además, como solo lectura, el
+    título del proyecto y el nombre del evaluador para los listados del frontend.
+    """
+
+    proyecto_titulo = serializers.CharField(source='proyecto.titulo', read_only=True)
+    evaluador_nombre = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = EvaluacionProyecto
         fields = [
             'id',
             'proyecto',
+            'proyecto_titulo',
             'evaluador',
+            'evaluador_nombre',
             'calificacion',
             'estado_proyecto',
             'observaciones',
@@ -16,7 +28,17 @@ class EvaluacionProyectoSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at'
         ]
-        read_only_fields = ['id', 'evaluador', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'proyecto_titulo', 'evaluador', 'evaluador_nombre',
+            'created_at', 'updated_at',
+        ]
+
+    def get_evaluador_nombre(self, obj):
+        """Nombre completo del evaluador (o su correo); ``None`` si fue borrado."""
+        u = obj.evaluador
+        if not u:
+            return None
+        return f"{u.first_name} {u.last_name}".strip() or u.email
 
     def validate_calificacion(self, value):
         if value < 0.0 or value > 5.0:

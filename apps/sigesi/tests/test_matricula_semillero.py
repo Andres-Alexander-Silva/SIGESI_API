@@ -1,8 +1,26 @@
 """Smoke tests for /api/v1/core/inscripciones/ (MatriculaSemillero)."""
+from datetime import date
+
 import pytest
+
+from apps.sigesi.models import Semillero
 
 
 URL = '/api/v1/core/inscripciones/'
+
+
+def _semillero_aprobado(grupo, director=None, lider=None, codigo='SX'):
+    """Crea un semillero aprobado auxiliar para casos de alcance."""
+    return Semillero.objects.create(
+        nombre=f'Semillero {codigo}',
+        codigo=codigo,
+        objetivo='Aux.',
+        fecha_creacion=date.today(),
+        grupo_investigacion=grupo,
+        director=director,
+        lider_estudiantil=lider,
+        estado_aval=Semillero.EstadoAvalChoices.APROBADO,
+    )
 
 
 @pytest.mark.django_db
@@ -258,7 +276,99 @@ def test_multi_role_user_with_student_and_director_can_self_enroll_with_explicit
         'semillero': semillero_aprobado.id,
         'semestre': '2025-1',
     }, format='json')
-    
+
     assert resp.status_code == 201, resp.content
     assert resp.json()['data']['estudiante'] == multi_role_user.id
+
+
+# ---------------------------------------------------------------------------
+# Alcance por rol de gestión (director de grupo / semillero / líder)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_director_grupo_can_enroll_student_in_their_group_semillero(
+    auth_client, director_grupo, otro_estudiante, semillero_aprobado
+):
+    """El director de grupo inscribe en semilleros de los grupos que dirige."""
+    # semillero_aprobado.grupo_investigacion.director == director_grupo (fixtures).
+    client = auth_client(director_grupo)
+    resp = client.post(URL, {
+        'estudiante': otro_estudiante.id,
+        'semillero': semillero_aprobado.id,
+        'semestre': '2025-1',
+    }, format='json')
+    assert resp.status_code == 201, resp.content
+    assert resp.json()['data']['estudiante'] == otro_estudiante.id
+
+
+@pytest.mark.django_db
+def test_director_grupo_cannot_enroll_outside_their_group(
+    auth_client, otro_estudiante, semillero_aprobado
+):
+    """Un director de grupo que no dirige el grupo del semillero queda fuera de alcance."""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    ajeno = User.objects.create(
+        username='dg_ajeno', cedula='CC700001',
+        correo_personal='dgajeno@example.com', email='dgajeno@inst.edu',
+        roles=['director_grupo'], is_active=True,
+    )
+    ajeno.set_password('x')
+    ajeno.save()
+
+    client = auth_client(ajeno)
+    resp = client.post(URL, {
+        'estudiante': otro_estudiante.id,
+        'semillero': semillero_aprobado.id,
+        'semestre': '2025-1',
+    }, format='json')
+    assert resp.status_code == 400
+    assert 'alcance' in resp.content.decode().lower()
+
+
+@pytest.mark.django_db
+def test_lider_can_enroll_student_in_led_semillero(
+    auth_client, lider_estudiantil, otro_estudiante, semillero_aprobado
+):
+    """El líder estudiantil inscribe a otros en los semilleros que lidera."""
+    # semillero_aprobado.lider_estudiantil == lider_estudiantil (fixtures).
+    client = auth_client(lider_estudiantil)
+    resp = client.post(URL, {
+        'estudiante': otro_estudiante.id,
+        'semillero': semillero_aprobado.id,
+        'semestre': '2025-1',
+    }, format='json')
+    assert resp.status_code == 201, resp.content
+    assert resp.json()['data']['estudiante'] == otro_estudiante.id
+
+
+@pytest.mark.django_db
+def test_lider_cannot_enroll_in_unled_semillero(
+    auth_client, lider_estudiantil, otro_estudiante, grupo, director_semillero
+):
+    """El líder no puede inscribir a otros en un semillero que no lidera."""
+    otro_sem = _semillero_aprobado(grupo, director=director_semillero, codigo='S-NL')
+    client = auth_client(lider_estudiantil)
+    resp = client.post(URL, {
+        'estudiante': otro_estudiante.id,
+        'semillero': otro_sem.id,
+        'semestre': '2025-1',
+    }, format='json')
+    assert resp.status_code == 400
+    assert 'alcance' in resp.content.decode().lower()
+
+
+@pytest.mark.django_db
+def test_lider_can_self_enroll_in_any_semillero(
+    auth_client, lider_estudiantil, grupo, director_semillero
+):
+    """El líder (que también es estudiante) puede autoinscribirse en cualquier semillero."""
+    otro_sem = _semillero_aprobado(grupo, director=director_semillero, codigo='S-SELF')
+    client = auth_client(lider_estudiantil)
+    resp = client.post(URL, {
+        'semillero': otro_sem.id,
+        'semestre': '2025-1',
+    }, format='json')
+    assert resp.status_code == 201, resp.content
+    assert resp.json()['data']['estudiante'] == lider_estudiantil.id
 

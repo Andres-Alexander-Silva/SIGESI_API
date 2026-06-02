@@ -1,6 +1,6 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 from apps.sigesi.models import User, GrupoInvestigacion, Actividad
-from apps.sigesi.utils.alcance import participantes_en_alcance
+from apps.sigesi.utils.alcance import participantes_en_alcance, semilleros_en_alcance
 
 
 def active_role(request):
@@ -216,68 +216,55 @@ class ProyectoRolePermission(BasePermission):
 class InscripcionRolePermission(BasePermission):
     """
     Control de acceso para inscripciones de semillero (MatriculaSemillero).
-    - Administrador: Acceso total (CRUD completo).
-    - Estudiante: Puede crear (auto-inscripción), listar las suyas y retirarse (DELETE).
-    - Director de Semillero: Puede listar miembros de su semillero e inscribir estudiantes.
-    - Director de Grupo: Solo lectura de todas las inscripciones.
+    - Administrador: acceso total (inscribe a cualquiera en cualquier semillero).
+    - Director de Grupo / Director de Semillero / Líder Estudiantil: inscriben a
+      cualquier estudiante en los semilleros de su alcance
+      (:func:`semilleros_en_alcance`); también pueden autoinscribirse.
+    - Estudiante: solo puede autoinscribirse (en cualquier semillero) y retirarse.
+
+    Esta clase gobierna el gate por método; el alcance fino (en qué semillero)
+    se valida en el serializer de creación y, para el retiro, en
+    ``has_object_permission``. La lectura por filas la restringe ``get_queryset``.
     """
 
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
+        user = request.user
+        if not user or not user.is_authenticated:
             return False
 
-        user = request.user
-
-        # Administrador tiene acceso total
+        # Administrador tiene acceso total.
         if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return True
 
-        # Estudiante: GET, POST, DELETE permitidos (restricción a nivel de objeto)
-        if user.tiene_rol(User.RolChoices.ESTUDIANTE):
-            if request.method in ('GET', 'HEAD', 'OPTIONS', 'POST', 'DELETE'):
-                return True
-            return False
+        # Lectura: cualquier autenticado (el queryset filtra las filas visibles).
+        if request.method in SAFE_METHODS:
+            return True
 
-        # Director de Semillero: GET y POST
-        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
-            if request.method in SAFE_METHODS or request.method == 'POST':
-                return True
-            return False
-
-        # Director de Grupo: solo lectura
-        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
-            return request.method in SAFE_METHODS
-
-        return False
+        # Escritura (POST/DELETE): roles del dominio. El alcance concreto lo
+        # validan el serializer (create) y has_object_permission (delete).
+        return user.tiene_alguno_de([
+            User.RolChoices.DIRECTOR_GRUPO,
+            User.RolChoices.DIRECTOR_SEMILLERO,
+            User.RolChoices.LIDER_ESTUDIANTIL,
+            User.RolChoices.ESTUDIANTE,
+        ])
 
     def has_object_permission(self, request, view, obj):
         user = request.user
 
-        # Administrador tiene acceso total
+        # Administrador tiene acceso total.
         if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return True
 
-        # Director de Grupo: puede ver cualquier inscripción
-        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
-            return request.method in SAFE_METHODS
+        # Lectura: el alcance por filas lo aplica get_queryset.
+        if request.method in SAFE_METHODS:
+            return True
 
-        # Director de Semillero: puede ver inscripciones de su semillero
-        if user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO):
-            if request.method in SAFE_METHODS:
-                return obj.semillero.director == user
-            return False
-
-        # Estudiante: solo puede ver/eliminar sus propias inscripciones
-        if user.tiene_rol(User.RolChoices.ESTUDIANTE):
-            if obj.estudiante != user:
-                return False
-            if request.method in SAFE_METHODS:
-                return True
-            if request.method == 'DELETE':
-                return obj.estado == 'activa'
-            return False
-
-        return False
+        # Retiro (DELETE): la propia inscripción, o una de un semillero en el
+        # alcance del gestor. La regla de estado 'activa' la aplica la vista.
+        if obj.estudiante_id == user.id:
+            return True
+        return semilleros_en_alcance(user).filter(pk=obj.semillero_id).exists()
 
 
 class ActividadRolePermission(BasePermission):

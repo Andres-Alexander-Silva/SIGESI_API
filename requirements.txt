@@ -25,6 +25,7 @@ django-cors-headers==4.9.0
 django-filter==25.2
 djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
+docxtpl==0.20.2
 drf-yasg==1.21.15
 et_xmlfile==2.0.0
 Faker==40.18.0
@@ -34,7 +35,10 @@ idna==3.11
 Incremental==24.11.0
 inflection==0.5.1
 iniconfig==2.3.0
+Jinja2==3.1.6
 kombu==5.5.4
+lxml==6.1.1
+MarkupSafe==3.0.3
 msgpack==1.1.2
 openpyxl==3.1.5
 packaging==26.0
@@ -53,6 +57,7 @@ pytest-cov==5.0.0
 pytest-django==4.9.0
 python-dateutil==2.9.0.post0
 python-decouple==3.8
+python-docx==1.2.0
 pytz==2026.1.post1
 PyYAML==6.0.3
 redis==5.2.1
