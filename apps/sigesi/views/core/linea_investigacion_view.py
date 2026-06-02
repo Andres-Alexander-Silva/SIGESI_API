@@ -49,7 +49,7 @@ class LineaInvestigacionViewSet(viewsets.ModelViewSet):
                 description='Criterio de ordenamiento: `nombre`, `-nombre`, `fecha`, `-fecha`.',
             ),
         ],
-        tags=["Core - Líneas de Investigación"]
+        tags=['Líneas de Investigación']
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
@@ -59,7 +59,7 @@ class LineaInvestigacionViewSet(viewsets.ModelViewSet):
         operation_description="Crea una nueva línea de investigación.",
         request_body=LineaInvestigacionCreateSerializer,
         responses={201: LineaInvestigacionSerializer},
-        tags=["Core - Líneas de Investigación"]
+        tags=['Líneas de Investigación']
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -71,7 +71,7 @@ class LineaInvestigacionViewSet(viewsets.ModelViewSet):
         operation_summary="Obtener línea de investigación",
         operation_description="Obtiene los detalles de una línea de investigación.",
         responses={200: LineaInvestigacionSerializer},
-        tags=["Core - Líneas de Investigación"]
+        tags=['Líneas de Investigación']
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
@@ -81,7 +81,7 @@ class LineaInvestigacionViewSet(viewsets.ModelViewSet):
         operation_description="Actualiza una línea de investigación de forma completa.",
         request_body=LineaInvestigacionUpdateSerializer,
         responses={200: LineaInvestigacionSerializer},
-        tags=["Core - Líneas de Investigación"]
+        tags=['Líneas de Investigación']
     )
     def update(self, request, *args, **kwargs):
         kwargs['partial'] = False
@@ -96,7 +96,7 @@ class LineaInvestigacionViewSet(viewsets.ModelViewSet):
         operation_description="Actualiza parcialmente una línea de investigación.",
         request_body=LineaInvestigacionUpdateSerializer,
         responses={200: LineaInvestigacionSerializer},
-        tags=["Core - Líneas de Investigación"]
+        tags=['Líneas de Investigación']
     )
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -108,7 +108,7 @@ class LineaInvestigacionViewSet(viewsets.ModelViewSet):
     @swagger_auto_schema(
         operation_summary="Eliminar línea de investigación",
         operation_description="Elimina una línea de investigación.",
-        tags=["Core - Líneas de Investigación"]
+        tags=['Líneas de Investigación']
     )
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)

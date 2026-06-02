@@ -8,10 +8,29 @@ from drf_yasg import openapi
 
 schema_view = get_schema_view(
     openapi.Info(
-        title="Semilleros de Investigación API",
+        title="SIGESI — API de Semilleros de Investigación",
         default_version='v1',
-        description="API para la Plataforma Estratégica de Gestión y Fortalecimiento de Semilleros de Investigación",
-        contact=openapi.Contact(email="admin@semilleros.com"),
+        description=(
+            "API REST de la **Plataforma Estratégica de Gestión y Fortalecimiento "
+            "de Semilleros de Investigación** (SIGESI).\n\n"
+            "La documentación está organizada por **módulos** (ver los grupos en la "
+            "barra lateral de ReDoc): Autenticación, Configuración del sistema, "
+            "Estructura organizativa, Proyectos, Planeación estratégica, Competencias "
+            "y evaluación, Producción académica, Eventos y convocatorias, "
+            "Notificaciones, Dashboards e indicadores, Reportes y formatos, y Sistema.\n\n"
+            "### Autenticación (dos pasos)\n"
+            "1. `POST /api/v1/auth/login/` → devuelve un **JWT de identidad** "
+            "(sin rol activo).\n"
+            "2. `POST /api/v1/auth/select-role/` con el rol elegido → devuelve los "
+            "**tokens de contexto** cuyo *access* incluye el claim `role`.\n\n"
+            "Use el botón **Authorize** e ingrese `Bearer <access_token>` con el token "
+            "de contexto para consumir los endpoints protegidos."
+        ),
+        contact=openapi.Contact(
+            name="Equipo SIGESI",
+            email="admin@semilleros.com",
+        ),
+        license=openapi.License(name="Uso institucional"),
     ),
     public=True,
     permission_classes=[permissions.AllowAny],

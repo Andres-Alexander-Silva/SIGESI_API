@@ -38,7 +38,7 @@ class SelectRoleView(APIView):
             200: SelectRoleResponseSerializer(),
             403: 'El usuario no posee el rol solicitado',
         },
-        tags=['Auth'],
+        tags=['Autenticación'],
     )
     def post(self, request):
         serializer = SelectRoleRequestSerializer(data=request.data)

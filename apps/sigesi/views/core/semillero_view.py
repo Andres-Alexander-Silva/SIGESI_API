@@ -34,7 +34,7 @@ class SemilleroViewSet(viewsets.ModelViewSet):
         operation_summary="Listar semilleros",
         operation_description="Retorna la lista de todos los semilleros registrados.",
         responses={200: SemilleroListSerializer(many=True)},
-        tags=["Semilleros"]
+        tags=['Semilleros']
     )
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -45,7 +45,7 @@ class SemilleroViewSet(viewsets.ModelViewSet):
         operation_summary="Consultar detalle de semillero",
         operation_description="Retorna la información detallada de un semillero.",
         responses={200: SemilleroListSerializer, 404: "Semillero no encontrado"},
-        tags=["Semilleros"]
+        tags=['Semilleros']
     )
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -61,7 +61,7 @@ class SemilleroViewSet(viewsets.ModelViewSet):
             400: openapi.Response("Errores de validación"),
             403: openapi.Response("No tiene permisos (ej. Director de grupo asignando a otro grupo)")
         },
-        tags=["Semilleros"]
+        tags=['Semilleros']
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -82,7 +82,7 @@ class SemilleroViewSet(viewsets.ModelViewSet):
             403: "No tiene permisos para modificar este semillero",
             404: "Semillero no encontrado"
         },
-        tags=["Semilleros"]
+        tags=['Semilleros']
     )
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -101,7 +101,7 @@ class SemilleroViewSet(viewsets.ModelViewSet):
             403: "No tiene permisos",
             404: "Semillero no encontrado"
         },
-        tags=["Semilleros"]
+        tags=['Semilleros']
     )
     def partial_update(self, request, *args, **kwargs):
         kwargs['partial'] = True
@@ -116,7 +116,7 @@ class SemilleroViewSet(viewsets.ModelViewSet):
             403: openapi.Response("No tiene permisos"),
             404: openapi.Response("Semillero no encontrado")
         },
-        tags=["Semilleros"]
+        tags=['Semilleros']
     )
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()

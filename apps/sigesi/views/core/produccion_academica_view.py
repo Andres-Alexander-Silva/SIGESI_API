@@ -21,6 +21,8 @@ class ProduccionAcademicaViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, views
       del proyecto vinculado.
     """
 
+    # Etiqueta de documentación para las acciones sin decorar (mixins de archivo).
+    swagger_tags = ['Producción Académica']
     queryset = (
         ProduccionAcademica.objects.all()
         .select_related('proyecto', 'semillero', 'linea_investigacion')

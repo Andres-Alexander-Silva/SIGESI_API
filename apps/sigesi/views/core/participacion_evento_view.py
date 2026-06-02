@@ -34,6 +34,8 @@ class ParticipacionEventoViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
     ``POST /{id}/cargar-certificado/``.
     """
 
+    # Etiqueta de documentación para las acciones sin decorar (mixin de archivo).
+    swagger_tags = ['Participaciones en Eventos']
     queryset = (
         ParticipacionEvento.objects.all()
         .select_related('evento', 'participante', 'produccion')

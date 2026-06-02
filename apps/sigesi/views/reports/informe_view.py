@@ -32,6 +32,8 @@ class InformePermission(permissions.BasePermission):
         return False
 
 class InformeViewSet(viewsets.ModelViewSet):
+    """ViewSet para generar y consultar informes de semilleros."""
+    swagger_tags = ['Informes']  # Sección de documentación (drf-yasg)
     queryset = Informe.objects.all().select_related('semillero', 'generado_por')
     serializer_class = InformeSerializer
     permission_classes = [permissions.IsAuthenticated, InformePermission]

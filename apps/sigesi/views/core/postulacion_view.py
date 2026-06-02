@@ -31,6 +31,8 @@ class PostulacionViewSet(viewsets.ModelViewSet):
     ``convocatoria``, ``semillero`` y ``estado``.
     """
 
+    # Etiqueta de documentación para los métodos sin decorar (p. ej. PUT update).
+    swagger_tags = ['Postulaciones']
     queryset = (
         Postulacion.objects.all()
         .select_related(

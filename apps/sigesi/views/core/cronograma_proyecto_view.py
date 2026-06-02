@@ -18,6 +18,8 @@ from apps.sigesi.utils.download import ArchiveDownloadMixin, ArchiveUploadMixin
 class CronogramaProyectoViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewsets.ModelViewSet):
     """ViewSet CRUD para los cronogramas de proyecto, con control de acceso por rol."""
 
+    # Etiqueta de documentación para las acciones sin decorar (mixins de archivo).
+    swagger_tags = ['Cronograma de Proyecto']
     queryset = (
         CronogramaProyecto.objects.all()
         .select_related('proyecto')
@@ -64,7 +66,7 @@ class CronogramaProyectoViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewse
         operation_summary='Listar cronogramas de proyecto',
         operation_description='Retorna la lista de cronogramas permitidos para el usuario autenticado.',
         responses={200: CronogramaProyectoListSerializer(many=True)},
-        tags=['Cronograma Proyecto'],
+        tags=['Cronograma de Proyecto'],
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
@@ -72,7 +74,7 @@ class CronogramaProyectoViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewse
     @swagger_auto_schema(
         operation_summary='Consultar detalle de cronograma',
         responses={200: CronogramaProyectoListSerializer, 404: 'Cronograma no encontrado'},
-        tags=['Cronograma Proyecto'],
+        tags=['Cronograma de Proyecto'],
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
@@ -85,7 +87,7 @@ class CronogramaProyectoViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewse
             400: openapi.Response('Errores de validación'),
             403: openapi.Response('No tiene permisos'),
         },
-        tags=['Cronograma Proyecto'],
+        tags=['Cronograma de Proyecto'],
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -108,7 +110,7 @@ class CronogramaProyectoViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewse
             403: 'No tiene permisos',
             404: 'Cronograma no encontrado',
         },
-        tags=['Cronograma Proyecto'],
+        tags=['Cronograma de Proyecto'],
     )
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
@@ -122,7 +124,7 @@ class CronogramaProyectoViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewse
             403: 'No tiene permisos',
             404: 'Cronograma no encontrado',
         },
-        tags=['Cronograma Proyecto'],
+        tags=['Cronograma de Proyecto'],
     )
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
@@ -134,7 +136,7 @@ class CronogramaProyectoViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewse
             403: openapi.Response('No tiene permisos'),
             404: openapi.Response('Cronograma no encontrado'),
         },
-        tags=['Cronograma Proyecto'],
+        tags=['Cronograma de Proyecto'],
     )
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
@@ -171,7 +173,7 @@ class CronogramaProyectoViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewse
             400: 'Falta el query param proyecto o es inválido',
             401: 'No autenticado',
         },
-        tags=['Cronograma Proyecto'],
+        tags=['Cronograma de Proyecto'],
     )
     @action(detail=False, methods=['get'], url_path='porcentaje-cumplimiento')
     def porcentaje_cumplimiento(self, request):

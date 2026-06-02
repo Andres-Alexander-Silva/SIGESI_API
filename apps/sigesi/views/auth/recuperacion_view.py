@@ -25,7 +25,7 @@ class RecuperacionView(APIView):
             200: "Solicitud procesada correctamente",
             400: "Errores de validación"
         },
-        tags=['Auth']
+        tags=['Autenticación']
     )
     def post(self, request):
         from django.db.models import Q
@@ -93,7 +93,7 @@ class SetPasswordView(APIView):
             200: "Contraseña actualizada exitosamente",
             400: "Token inválido o errores en los datos"
         },
-        tags=['Auth']
+        tags=['Autenticación']
     )
     def post(self, request):
         serializer = SetPasswordSerializer(data=request.data)

@@ -50,6 +50,7 @@ class EvaluacionProyectoViewSet(viewsets.ModelViewSet):
     """
     ViewSet para manejar el CRUD de Evaluaciones de Proyectos.
     """
+    swagger_tags = ['Evaluación de Proyectos']  # Sección de documentación (drf-yasg)
     serializer_class = EvaluacionProyectoSerializer
     permission_classes = [permissions.IsAuthenticated, EvaluacionProyectoPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
