@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -17,6 +18,31 @@ from apps.sigesi.utils.notifications import (
 )
 
 
+@method_decorator(name='list', decorator=swagger_auto_schema(
+    operation_summary='Listar postulaciones',
+    manual_parameters=[
+        openapi.Parameter('convocatoria', openapi.IN_QUERY, description='Filtrar por ID de convocatoria.',
+                          type=openapi.TYPE_INTEGER, required=False),
+        openapi.Parameter('semillero', openapi.IN_QUERY, description='Filtrar por ID de semillero.',
+                          type=openapi.TYPE_INTEGER, required=False),
+        openapi.Parameter('estado', openapi.IN_QUERY, description='Filtrar por estado.',
+                          type=openapi.TYPE_STRING, required=False),
+    ],
+    responses={200: PostulacionListSerializer(many=True)},
+    tags=['Postulaciones'],
+))
+@method_decorator(name='retrieve', decorator=swagger_auto_schema(
+    operation_summary='Consultar detalle de postulación',
+    responses={200: PostulacionListSerializer, 404: 'Postulación no encontrada'},
+    tags=['Postulaciones'],
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary='Eliminar postulación',
+    responses={204: openapi.Response('Postulación eliminada correctamente'),
+               403: openapi.Response('No tiene permisos'),
+               404: openapi.Response('Postulación no encontrada')},
+    tags=['Postulaciones'],
+))
 class PostulacionViewSet(viewsets.ModelViewSet):
     """ViewSet CRUD para las postulaciones de semilleros a convocatorias.
 
@@ -81,32 +107,6 @@ class PostulacionViewSet(viewsets.ModelViewSet):
         return queryset.none()
 
     @swagger_auto_schema(
-        operation_summary='Listar postulaciones',
-        manual_parameters=[
-            openapi.Parameter('convocatoria', openapi.IN_QUERY, description='Filtrar por ID de convocatoria.',
-                              type=openapi.TYPE_INTEGER, required=False),
-            openapi.Parameter('semillero', openapi.IN_QUERY, description='Filtrar por ID de semillero.',
-                              type=openapi.TYPE_INTEGER, required=False),
-            openapi.Parameter('estado', openapi.IN_QUERY, description='Filtrar por estado.',
-                              type=openapi.TYPE_STRING, required=False),
-        ],
-        responses={200: PostulacionListSerializer(many=True)},
-        tags=['Postulaciones'],
-    )
-    def list(self, request, *args, **kwargs):
-        """Lista las postulaciones visibles para el usuario."""
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary='Consultar detalle de postulación',
-        responses={200: PostulacionListSerializer, 404: 'Postulación no encontrada'},
-        tags=['Postulaciones'],
-    )
-    def retrieve(self, request, *args, **kwargs):
-        """Devuelve el detalle de una postulación."""
-        return super().retrieve(request, *args, **kwargs)
-
-    @swagger_auto_schema(
         operation_summary='Registrar postulación',
         request_body=PostulacionCreateUpdateSerializer,
         responses={
@@ -157,8 +157,15 @@ class PostulacionViewSet(viewsets.ModelViewSet):
         tags=['Postulaciones'],
     )
     def update(self, request, *args, **kwargs):
-        """Actualiza por completo una postulación."""
-        return super().update(request, *args, **kwargs)
+        """Actualiza por completo una postulación; notifica si cambia ``estado``."""
+        postulacion = self.get_object()
+        estado_anterior = postulacion.estado
+        response = super().update(request, *args, **kwargs)
+        postulacion.refresh_from_db()
+        if postulacion.estado != estado_anterior:
+            self._emitir_actualizacion_estado(
+                postulacion, estado_anterior, actor=request.user)
+        return response
 
     @swagger_auto_schema(
         operation_summary='Actualizar postulación (parcial)',
@@ -172,17 +179,6 @@ class PostulacionViewSet(viewsets.ModelViewSet):
         postulacion = self.get_object()
         estado_anterior = postulacion.estado
         response = super().partial_update(request, *args, **kwargs)
-        postulacion.refresh_from_db()
-        if postulacion.estado != estado_anterior:
-            self._emitir_actualizacion_estado(
-                postulacion, estado_anterior, actor=request.user)
-        return response
-
-    def update(self, request, *args, **kwargs):
-        """Actualiza por completo una postulación; notifica si cambia ``estado``."""
-        postulacion = self.get_object()
-        estado_anterior = postulacion.estado
-        response = super().update(request, *args, **kwargs)
         postulacion.refresh_from_db()
         if postulacion.estado != estado_anterior:
             self._emitir_actualizacion_estado(
@@ -207,17 +203,6 @@ class PostulacionViewSet(viewsets.ModelViewSet):
             ),
             target=postulacion,
         )
-
-    @swagger_auto_schema(
-        operation_summary='Eliminar postulación',
-        responses={204: openapi.Response('Postulación eliminada correctamente'),
-                   403: openapi.Response('No tiene permisos'),
-                   404: openapi.Response('Postulación no encontrada')},
-        tags=['Postulaciones'],
-    )
-    def destroy(self, request, *args, **kwargs):
-        """Elimina una postulación."""
-        return super().destroy(request, *args, **kwargs)
 
     def _resolver(self, request, nuevo_estado):
         """Resuelve la postulación (aprobar/rechazar): valida rol, estado y sella auditoría.

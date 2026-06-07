@@ -89,38 +89,71 @@ class InscripcionCreateSerializer(serializers.ModelSerializer):
         fields = ['estudiante', 'semillero', 'semestre', 'rol_en_semillero']
         validators = []
 
-    def validate(self, attrs):
-        request = self.context.get('request')
-        user = request.user
+    def validate(self, attrs: dict) -> dict:
+        """Valida una inscripción aplicando todas las reglas de negocio en orden.
 
-        # --- Resolver estudiante ---
+        Resuelve el estudiante (autoinscripción), verifica el permiso del actor,
+        el rol del inscrito, el estado y el alcance del semillero, los duplicados,
+        el aval institucional y la designación de líder estudiantil.
+
+        Args:
+            attrs: Datos ya validados por campo (incluye ``semillero``,
+                ``semestre`` y, opcionalmente, ``estudiante``/``rol_en_semillero``).
+
+        Returns:
+            Los ``attrs`` con ``estudiante`` resuelto.
+
+        Raises:
+            serializers.ValidationError: Si alguna regla de negocio no se cumple.
+        """
+        user = self.context['request'].user
+        semillero = attrs['semillero']
+
+        estudiante = self._resolver_estudiante(attrs, user)
+        self._validar_actor_puede_inscribir(estudiante, user)
+        self._validar_rol_inscrito(estudiante)
+        self._validar_semillero_activo(semillero)
+        self._validar_no_duplicado(estudiante, semillero, attrs['semestre'])
+        self._validar_alcance(estudiante, semillero, user)
+        validar_semilleros_avalados([semillero], user, field_name='semillero')
+        self._validar_designacion_lider(
+            attrs.get('rol_en_semillero'), semillero, user)
+
+        return attrs
+
+    def _resolver_estudiante(self, attrs: dict, user: User) -> User:
+        """Devuelve el estudiante a inscribir, autoasignando al actor si es estudiante."""
         estudiante = attrs.get('estudiante')
+        if estudiante:
+            return estudiante
+        if user.tiene_rol(User.RolChoices.ESTUDIANTE):
+            attrs['estudiante'] = user
+            return user
+        raise serializers.ValidationError({
+            'estudiante': 'Debe indicar el estudiante a inscribir.'
+        })
 
-        if not estudiante:
-            # Auto-inscripción: el usuario actual es el estudiante
-            if user.tiene_rol(User.RolChoices.ESTUDIANTE):
-                attrs['estudiante'] = user
-                estudiante = user
-            else:
-                raise serializers.ValidationError({
-                    'estudiante': 'Debe indicar el estudiante a inscribir.'
-                })
+    def _validar_actor_puede_inscribir(self, estudiante: User, user: User) -> None:
+        """Solo un gestor puede inscribir a alguien distinto de sí mismo.
 
-        # --- Inscribir a OTRA persona requiere un rol de gestión ---
-        # (un usuario que solo es estudiante —aunque por el invariante un líder
-        # también lleve el rol estudiante— únicamente puede autoinscribirse).
+        Un usuario que solo es estudiante —aunque por el invariante un líder
+        también lleve el rol estudiante— únicamente puede autoinscribirse.
+        """
+        if estudiante.id == user.id:
+            return
         es_gestor = user.tiene_alguno_de([
             User.RolChoices.ADMINISTRADOR,
             User.RolChoices.DIRECTOR_GRUPO,
             User.RolChoices.DIRECTOR_SEMILLERO,
             User.RolChoices.LIDER_ESTUDIANTIL,
         ])
-        if estudiante.id != user.id and not es_gestor:
+        if not es_gestor:
             raise serializers.ValidationError({
                 'estudiante': 'Un estudiante solo puede inscribirse a sí mismo.'
             })
 
-        # --- Validar que el usuario a inscribir sea estudiante o líder estudiantil ---
+    def _validar_rol_inscrito(self, estudiante: User) -> None:
+        """El usuario a inscribir debe tener rol estudiante o líder estudiantil."""
         if not estudiante.tiene_alguno_de([
             User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL,
         ]):
@@ -128,15 +161,17 @@ class InscripcionCreateSerializer(serializers.ModelSerializer):
                 'estudiante': 'Solo se puede inscribir a usuarios con rol estudiante o líder estudiantil.'
             })
 
-        # --- Validar semillero activo ---
-        semillero = attrs['semillero']
+    def _validar_semillero_activo(self, semillero: Semillero) -> None:
+        """El semillero destino debe estar activo."""
         if not semillero.is_active:
             raise serializers.ValidationError({
                 'semillero': 'El semillero seleccionado no se encuentra activo.'
             })
 
-        # --- Validar duplicado ---
-        semestre = attrs['semestre']
+    def _validar_no_duplicado(
+        self, estudiante: User, semillero: Semillero, semestre: str,
+    ) -> None:
+        """No puede existir ya una matrícula del estudiante en ese semillero/semestre."""
         if MatriculaSemillero.objects.filter(
             estudiante=estudiante,
             semillero=semillero,
@@ -149,40 +184,44 @@ class InscripcionCreateSerializer(serializers.ModelSerializer):
                 ]
             })
 
-        # --- Validar alcance al inscribir a otra persona ---
-        # Director de Grupo / Director de Semillero / Líder Estudiantil solo
-        # pueden inscribir a otros en los semilleros de su alcance; el estudiante
-        # se autoinscribe a cualquiera (no entra aquí) y el admin no tiene tope.
-        if (estudiante.id != user.id
-                and not user.tiene_rol(User.RolChoices.ADMINISTRADOR)):
-            if not semilleros_en_alcance(user).filter(pk=semillero.pk).exists():
-                raise serializers.ValidationError({
-                    'semillero': 'Solo puede inscribir estudiantes en semilleros de su alcance.'
-                })
+    def _validar_alcance(
+        self, estudiante: User, semillero: Semillero, user: User,
+    ) -> None:
+        """Al inscribir a otra persona, el semillero debe estar en el alcance del actor.
 
-        # --- Validar aval del semillero ---
-        validar_semilleros_avalados([semillero], user, field_name='semillero')
+        El estudiante se autoinscribe a cualquier semillero (no entra aquí) y el
+        administrador no tiene tope; el resto de gestores solo inscriben a otros
+        en los semilleros de su alcance.
+        """
+        if estudiante.id == user.id or user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return
+        if not semilleros_en_alcance(user).filter(pk=semillero.pk).exists():
+            raise serializers.ValidationError({
+                'semillero': 'Solo puede inscribir estudiantes en semilleros de su alcance.'
+            })
 
-        # --- Designar líder estudiantil: solo admin / director del semillero / director de grupo ---
-        if attrs.get('rol_en_semillero') == 'lider_estudiantil':
-            puede_designar = (
-                user.tiene_alguno_de([
-                    User.RolChoices.ADMINISTRADOR, User.RolChoices.DIRECTOR_GRUPO,
-                ])
-                or (user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO)
-                    and semillero.director_id == user.id)
-            )
-            if not puede_designar:
-                raise serializers.ValidationError({
-                    'rol_en_semillero': (
-                        'Solo un administrador, el director del semillero o un '
-                        'director de grupo puede designar al líder estudiantil.'
-                    )
-                })
+    def _validar_designacion_lider(
+        self, rol_en_semillero, semillero: Semillero, user: User,
+    ) -> None:
+        """Solo admin, director de grupo o el director del semillero designan líder."""
+        if rol_en_semillero != 'lider_estudiantil':
+            return
+        puede_designar = (
+            user.tiene_alguno_de([
+                User.RolChoices.ADMINISTRADOR, User.RolChoices.DIRECTOR_GRUPO,
+            ])
+            or (user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO)
+                and semillero.director_id == user.id)
+        )
+        if not puede_designar:
+            raise serializers.ValidationError({
+                'rol_en_semillero': (
+                    'Solo un administrador, el director del semillero o un '
+                    'director de grupo puede designar al líder estudiantil.'
+                )
+            })
 
-        return attrs
-
-    def create(self, validated_data):
+    def create(self, validated_data: dict) -> MatriculaSemillero:
         rol_en_semillero = validated_data.pop('rol_en_semillero', 'estudiante')
 
         with transaction.atomic():

@@ -103,6 +103,7 @@ def test_convocatoria_cambio_estado_notifica(
     assert resp.status_code == 200
     notif = Notificacion.objects.get(
         usuario=director_semillero, tipo='convocatoria_actualizada')
+    convocatoria.refresh_from_db()
     assert convocatoria.estado == Convocatoria.EstadoChoices.CERRADA
     assert mock_push.called
 
@@ -290,6 +291,28 @@ def test_participacion_destroy_notifica_participante(
     notif = Notificacion.objects.get(
         usuario=estudiante, tipo='participacion_actualizada')
     assert 'eliminada' in notif.titulo.lower() or 'eliminada' in notif.mensaje.lower()
+
+
+@pytest.mark.django_db
+@patch('apps.sigesi.utils.notifications.async_to_sync')
+@patch('apps.sigesi.models.Notificacion.objects.update_or_create')
+def test_participacion_creada_aunque_falle_la_notificacion(
+    mock_create, mock_push, auth_client, admin_user, estudiante
+):
+    """Si persistir la notificación falla, el registro de participación no se rompe.
+
+    La notificación es fire-and-forget: un ``DatabaseError`` al crear la fila se
+    registra y se ignora, de modo que la operación que la originó responde 201.
+    """
+    from django.db import DatabaseError
+
+    mock_create.side_effect = DatabaseError('bandeja caída')
+    evento = _crear_evento()
+    client = auth_client(admin_user)
+    resp = client.post(
+        URL_PART, _payload_part(evento, estudiante), format='json')
+    assert resp.status_code == 201, resp.content
+    assert ParticipacionEvento.objects.filter(participante=estudiante).exists()
 
 
 # ====================================================================

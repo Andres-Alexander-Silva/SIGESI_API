@@ -20,10 +20,10 @@ class InformePermission(permissions.BasePermission):
         return True
 
     def has_object_permission(self, request, view, obj):
-        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR) or request.user.tiene_rol(User.RolChoices.DIRECTOR_PROGRAMA):
+        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return True
-            
-        if request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DOCENTE]):
+
+        if request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
             return obj.semillero.director == request.user or obj.semillero.grupo_investigacion.director == request.user
             
         if request.user.tiene_rol(User.RolChoices.ESTUDIANTE):
@@ -49,10 +49,10 @@ class InformeViewSet(viewsets.ModelViewSet):
         if not user or not user.is_authenticated:
             return qs.none()
 
-        if user.tiene_rol(User.RolChoices.ADMINISTRADOR) or user.tiene_rol(User.RolChoices.DIRECTOR_PROGRAMA):
+        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return qs
 
-        if user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DOCENTE]):
+        if user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
             return qs.filter(semillero__director=user) | qs.filter(semillero__grupo_investigacion__director=user)
 
         if user.tiene_rol(User.RolChoices.ESTUDIANTE):

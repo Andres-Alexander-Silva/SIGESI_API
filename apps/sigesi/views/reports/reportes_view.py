@@ -34,7 +34,7 @@ class ReporteAcademicoProyectoList(generics.ListAPIView):
             return qs.none()
 
         if not user.tiene_rol(User.RolChoices.ADMINISTRADOR):
-            if user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DOCENTE]):
+            if user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
                 qs = qs.filter(Q(director=user) | Q(semilleros__director=user)).distinct()
             elif user.tiene_rol(User.RolChoices.ESTUDIANTE):
                 qs = qs.filter(estudiantes=user).distinct()
@@ -81,7 +81,7 @@ class ReporteGlobalSemilleroList(generics.ListAPIView):
             return qs.none()
 
         if not user.tiene_rol(User.RolChoices.ADMINISTRADOR):
-            if user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DOCENTE]):
+            if user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
                 qs = qs.filter(Q(director=user) | Q(grupo_investigacion__director=user)).distinct()
             elif user.tiene_rol(User.RolChoices.ESTUDIANTE):
                 qs = qs.filter(matriculas__estudiante=user, matriculas__estado='activa').distinct()

@@ -1,3 +1,6 @@
+import logging
+
+from django.utils.decorators import method_decorator
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -18,7 +21,25 @@ from apps.sigesi.utils.notifications import (
     _resolve_recipients_participacion,
 )
 
+logger = logging.getLogger(__name__)
 
+
+@method_decorator(name='list', decorator=swagger_auto_schema(
+    operation_summary='Listar participaciones en eventos',
+    manual_parameters=[
+        openapi.Parameter('evento', openapi.IN_QUERY, description='Filtrar por ID de evento.',
+                          type=openapi.TYPE_INTEGER, required=False),
+        openapi.Parameter('participante', openapi.IN_QUERY, description='Filtrar por ID de participante.',
+                          type=openapi.TYPE_INTEGER, required=False),
+    ],
+    responses={200: ParticipacionEventoListSerializer(many=True)},
+    tags=['Participaciones en Eventos'],
+))
+@method_decorator(name='retrieve', decorator=swagger_auto_schema(
+    operation_summary='Consultar detalle de participación',
+    responses={200: ParticipacionEventoListSerializer, 404: 'Participación no encontrada'},
+    tags=['Participaciones en Eventos'],
+))
 class ParticipacionEventoViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
     """ViewSet CRUD para las participaciones en eventos.
 
@@ -66,30 +87,6 @@ class ParticipacionEventoViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
         # alcance (que para el estudiante son únicamente las suyas).
         return queryset.filter(
             participante__in=participantes_en_alcance(user)).distinct()
-
-    @swagger_auto_schema(
-        operation_summary='Listar participaciones en eventos',
-        manual_parameters=[
-            openapi.Parameter('evento', openapi.IN_QUERY, description='Filtrar por ID de evento.',
-                              type=openapi.TYPE_INTEGER, required=False),
-            openapi.Parameter('participante', openapi.IN_QUERY, description='Filtrar por ID de participante.',
-                              type=openapi.TYPE_INTEGER, required=False),
-        ],
-        responses={200: ParticipacionEventoListSerializer(many=True)},
-        tags=['Participaciones en Eventos'],
-    )
-    def list(self, request, *args, **kwargs):
-        """Lista las participaciones visibles para el usuario."""
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary='Consultar detalle de participación',
-        responses={200: ParticipacionEventoListSerializer, 404: 'Participación no encontrada'},
-        tags=['Participaciones en Eventos'],
-    )
-    def retrieve(self, request, *args, **kwargs):
-        """Devuelve el detalle de una participación en evento."""
-        return super().retrieve(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary='Registrar participación en evento',
@@ -238,8 +235,15 @@ class ParticipacionEventoViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
         anterior = obj.certificado
         obj.certificado = archivo
         obj.save(update_fields=['certificado', 'updated_at'])
+        # El certificado nuevo ya quedó guardado; si falla la limpieza del
+        # anterior (E/S), se registra y se continúa sin abortar la subida.
         if anterior and anterior.name and anterior.name != obj.certificado.name:
-            anterior.delete(save=False)
+            try:
+                anterior.delete(save=False)
+            except OSError:
+                logger.warning(
+                    'No se pudo eliminar el certificado anterior de la participación %s',
+                    obj.pk, exc_info=True)
 
         # Notifica al participante de que su certificado fue cargado/reemplazado.
         self._emitir_a_participante(

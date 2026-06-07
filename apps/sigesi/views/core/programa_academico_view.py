@@ -1,3 +1,4 @@
+from django.utils.decorators import method_decorator
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
@@ -11,6 +12,25 @@ from apps.sigesi.serializers.core.programa_academico_serializer import (
 from apps.sigesi.decorators.permissions import AdminOrReadOnlyPermission
 
 
+@method_decorator(name='list', decorator=swagger_auto_schema(
+    operation_summary='Listar programas académicos',
+    responses={200: ProgramaAcademicoSerializer(many=True)},
+    tags=['Programas Académicos'],
+))
+@method_decorator(name='retrieve', decorator=swagger_auto_schema(
+    operation_summary='Consultar detalle de programa académico',
+    responses={200: ProgramaAcademicoSerializer, 404: 'Programa no encontrado'},
+    tags=['Programas Académicos'],
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary='Eliminar programa académico (admin)',
+    responses={
+        204: openapi.Response('Programa eliminado correctamente'),
+        403: openapi.Response('Solo el administrador puede eliminar programas'),
+        404: openapi.Response('Programa no encontrado'),
+    },
+    tags=['Programas Académicos'],
+))
 class ProgramaAcademicoViewSet(viewsets.ModelViewSet):
     """ViewSet CRUD para ProgramaAcademico.
 
@@ -29,22 +49,6 @@ class ProgramaAcademicoViewSet(viewsets.ModelViewSet):
         if self.action in ('create', 'update', 'partial_update'):
             return ProgramaAcademicoCreateUpdateSerializer
         return ProgramaAcademicoSerializer
-
-    @swagger_auto_schema(
-        operation_summary='Listar programas académicos',
-        responses={200: ProgramaAcademicoSerializer(many=True)},
-        tags=['Programas Académicos'],
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary='Consultar detalle de programa académico',
-        responses={200: ProgramaAcademicoSerializer, 404: 'Programa no encontrado'},
-        tags=['Programas Académicos'],
-    )
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary='Crear programa académico (admin)',
@@ -99,15 +103,3 @@ class ProgramaAcademicoViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         kwargs['partial'] = True
         return self.update(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary='Eliminar programa académico (admin)',
-        responses={
-            204: openapi.Response('Programa eliminado correctamente'),
-            403: openapi.Response('Solo el administrador puede eliminar programas'),
-            404: openapi.Response('Programa no encontrado'),
-        },
-        tags=['Programas Académicos'],
-    )
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)

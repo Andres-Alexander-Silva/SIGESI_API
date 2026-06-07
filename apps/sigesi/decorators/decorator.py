@@ -1,3 +1,13 @@
+"""MÓDULO OBSOLETO — no usar.
+
+Estos decoradores buscan ``Permiso`` por campos que ya no existen en el esquema
+(``opcion__codigo``, ``opcion__is_active``, ``permitido``); los campos reales son
+``opcion__url``, ``opcion__estado`` y los cuatro booleanos ``puede_*``. Ninguna
+vista del proyecto los usa: el control de acceso real vive en
+``apps/sigesi/decorators/permissions.py`` (clases ``*RolePermission`` +
+``HasRolePermission``). Se conserva solo para no romper imports históricos;
+no agregar nuevos usos y eliminarlo cuando se confirme que nada lo importa.
+"""
 import logging
 from functools import wraps
 from rest_framework.response import Response

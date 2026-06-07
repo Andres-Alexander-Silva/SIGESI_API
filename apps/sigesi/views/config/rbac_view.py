@@ -7,10 +7,45 @@ from apps.sigesi.models import Menu, Opcion, Permiso
 from apps.sigesi.serializers.config.rbac_serializer import MenuSerializer, OpcionSerializer, PermisoSerializer
 from apps.sigesi.utils.notifications import notificar_cambio_permiso, notificar_cambios_permisos_multiples
 from django.contrib.auth import get_user_model
+from django.utils.decorators import method_decorator
 
 User = get_user_model()
 
 
+@method_decorator(name='update', decorator=swagger_auto_schema(
+    operation_summary="Actualizar menú (completo)",
+    operation_description="Actualiza todos los campos de un menú existente.",
+    request_body=MenuSerializer,
+    responses={
+        200: MenuSerializer,
+        400: openapi.Response("Datos inválidos"),
+        401: openapi.Response("No autenticado"),
+        404: openapi.Response("Menú no encontrado"),
+    },
+    tags=['RBAC · Menús'],
+))
+@method_decorator(name='partial_update', decorator=swagger_auto_schema(
+    operation_summary="Actualizar menú (parcial)",
+    operation_description="Actualiza uno o más campos de un menú existente sin necesidad de enviar todos los campos.",
+    request_body=MenuSerializer,
+    responses={
+        200: MenuSerializer,
+        400: openapi.Response("Datos inválidos"),
+        401: openapi.Response("No autenticado"),
+        404: openapi.Response("Menú no encontrado"),
+    },
+    tags=['RBAC · Menús'],
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary="Eliminar menú",
+    operation_description="Elimina un menú del sistema. Si tiene submenús asociados, estos también serán eliminados (CASCADE).",
+    responses={
+        204: openapi.Response("Menú eliminado correctamente"),
+        401: openapi.Response("No autenticado"),
+        404: openapi.Response("Menú no encontrado"),
+    },
+    tags=['RBAC · Menús'],
+))
 class MenuViewSet(viewsets.ModelViewSet):
     """
     ViewSet para realizar operaciones CRUD completas sobre los Menús.
@@ -65,52 +100,41 @@ class MenuViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
-    @swagger_auto_schema(
-        operation_summary="Actualizar menú (completo)",
-        operation_description="Actualiza todos los campos de un menú existente.",
-        request_body=MenuSerializer,
-        responses={
-            200: MenuSerializer,
-            400: openapi.Response("Datos inválidos"),
-            401: openapi.Response("No autenticado"),
-            404: openapi.Response("Menú no encontrado"),
-        },
-        tags=['RBAC · Menús'],
-    )
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
 
-    @swagger_auto_schema(
-        operation_summary="Actualizar menú (parcial)",
-        operation_description="Actualiza uno o más campos de un menú existente sin necesidad de enviar todos los campos.",
-        request_body=MenuSerializer,
-        responses={
-            200: MenuSerializer,
-            400: openapi.Response("Datos inválidos"),
-            401: openapi.Response("No autenticado"),
-            404: openapi.Response("Menú no encontrado"),
-        },
-        tags=['RBAC · Menús'],
-    )
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary="Eliminar menú",
-        operation_description="Elimina un menú del sistema. Si tiene submenús asociados, estos también serán eliminados (CASCADE).",
-        responses={
-            204: openapi.Response("Menú eliminado correctamente"),
-            401: openapi.Response("No autenticado"),
-            404: openapi.Response("Menú no encontrado"),
-        },
-        tags=['RBAC · Menús'],
-    )
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
+@method_decorator(name='update', decorator=swagger_auto_schema(
+    operation_summary="Actualizar opción (completo)",
+    operation_description="Actualiza todos los campos de una opción existente.",
+    request_body=OpcionSerializer,
+    responses={
+        200: OpcionSerializer,
+        400: openapi.Response("Datos inválidos"),
+        401: openapi.Response("No autenticado"),
+        404: openapi.Response("Opción no encontrada"),
+    },
+    tags=['RBAC · Opciones'],
+))
+@method_decorator(name='partial_update', decorator=swagger_auto_schema(
+    operation_summary="Actualizar opción (parcial)",
+    operation_description="Actualiza uno o más campos de una opción existente.",
+    request_body=OpcionSerializer,
+    responses={
+        200: OpcionSerializer,
+        400: openapi.Response("Datos inválidos"),
+        401: openapi.Response("No autenticado"),
+        404: openapi.Response("Opción no encontrada"),
+    },
+    tags=['RBAC · Opciones'],
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary="Eliminar opción",
+    operation_description="Elimina una opción del sistema. Los permisos asociados a esta opción también serán eliminados (CASCADE).",
+    responses={
+        204: openapi.Response("Opción eliminada correctamente"),
+        401: openapi.Response("No autenticado"),
+        404: openapi.Response("Opción no encontrada"),
+    },
+    tags=['RBAC · Opciones'],
+))
 class OpcionViewSet(viewsets.ModelViewSet):
     """
     ViewSet para operaciones CRUD sobre Opciones (Acciones del sistema).
@@ -169,52 +193,41 @@ class OpcionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
-    @swagger_auto_schema(
-        operation_summary="Actualizar opción (completo)",
-        operation_description="Actualiza todos los campos de una opción existente.",
-        request_body=OpcionSerializer,
-        responses={
-            200: OpcionSerializer,
-            400: openapi.Response("Datos inválidos"),
-            401: openapi.Response("No autenticado"),
-            404: openapi.Response("Opción no encontrada"),
-        },
-        tags=['RBAC · Opciones'],
-    )
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
 
-    @swagger_auto_schema(
-        operation_summary="Actualizar opción (parcial)",
-        operation_description="Actualiza uno o más campos de una opción existente.",
-        request_body=OpcionSerializer,
-        responses={
-            200: OpcionSerializer,
-            400: openapi.Response("Datos inválidos"),
-            401: openapi.Response("No autenticado"),
-            404: openapi.Response("Opción no encontrada"),
-        },
-        tags=['RBAC · Opciones'],
-    )
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary="Eliminar opción",
-        operation_description="Elimina una opción del sistema. Los permisos asociados a esta opción también serán eliminados (CASCADE).",
-        responses={
-            204: openapi.Response("Opción eliminada correctamente"),
-            401: openapi.Response("No autenticado"),
-            404: openapi.Response("Opción no encontrada"),
-        },
-        tags=['RBAC · Opciones'],
-    )
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
+@method_decorator(name='update', decorator=swagger_auto_schema(
+    operation_summary="Actualizar permiso (completo)",
+    operation_description="Actualiza todos los campos de un permiso existente.",
+    request_body=PermisoSerializer,
+    responses={
+        200: PermisoSerializer,
+        400: openapi.Response("Datos inválidos"),
+        401: openapi.Response("No autenticado"),
+        404: openapi.Response("Permiso no encontrado"),
+    },
+    tags=['RBAC · Permisos'],
+))
+@method_decorator(name='partial_update', decorator=swagger_auto_schema(
+    operation_summary="Actualizar permiso (parcial)",
+    operation_description="Actualiza uno o más campos de un permiso existente.",
+    request_body=PermisoSerializer,
+    responses={
+        200: PermisoSerializer,
+        400: openapi.Response("Datos inválidos"),
+        401: openapi.Response("No autenticado"),
+        404: openapi.Response("Permiso no encontrado"),
+    },
+    tags=['RBAC · Permisos'],
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary="Eliminar permiso",
+    operation_description="Elimina un permiso del sistema, revocando el acceso de un rol a una opción específica.",
+    responses={
+        204: openapi.Response("Permiso eliminado correctamente"),
+        401: openapi.Response("No autenticado"),
+        404: openapi.Response("Permiso no encontrado"),
+    },
+    tags=['RBAC · Permisos'],
+))
 class PermisoViewSet(viewsets.ModelViewSet):
     """
     ViewSet para administrar los Permisos (Asignación de 'Opciones' a 'Roles').
@@ -272,51 +285,6 @@ class PermisoViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
-
-    @swagger_auto_schema(
-        operation_summary="Actualizar permiso (completo)",
-        operation_description="Actualiza todos los campos de un permiso existente.",
-        request_body=PermisoSerializer,
-        responses={
-            200: PermisoSerializer,
-            400: openapi.Response("Datos inválidos"),
-            401: openapi.Response("No autenticado"),
-            404: openapi.Response("Permiso no encontrado"),
-        },
-        tags=['RBAC · Permisos'],
-    )
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary="Actualizar permiso (parcial)",
-        operation_description="Actualiza uno o más campos de un permiso existente.",
-        request_body=PermisoSerializer,
-        responses={
-            200: PermisoSerializer,
-            400: openapi.Response("Datos inválidos"),
-            401: openapi.Response("No autenticado"),
-            404: openapi.Response("Permiso no encontrado"),
-        },
-        tags=['RBAC · Permisos'],
-    )
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary="Eliminar permiso",
-        operation_description="Elimina un permiso del sistema, revocando el acceso de un rol a una opción específica.",
-        responses={
-            204: openapi.Response("Permiso eliminado correctamente"),
-            401: openapi.Response("No autenticado"),
-            404: openapi.Response("Permiso no encontrado"),
-        },
-        tags=['RBAC · Permisos'],
-    )
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_create(self, serializer):
         """Crear permiso y notificar a los usuarios afectados."""

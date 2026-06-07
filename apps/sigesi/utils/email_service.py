@@ -1,6 +1,7 @@
 import logging
 import threading
 from smtplib import SMTPException
+from typing import Optional
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -9,7 +10,9 @@ from django.utils.html import strip_tags
 logger = logging.getLogger(__name__)
 
 
-def _enviar_en_hilo(destinatario_email, destinatario_nombre, token):
+def _enviar_en_hilo(
+    destinatario_email: str, destinatario_nombre: str, token: str,
+) -> None:
     """Lanza el envío SMTP en un hilo daemon y retorna de inmediato."""
     hilo = threading.Thread(
         target=enviar_correo_recuperacion,
@@ -22,7 +25,9 @@ def _enviar_en_hilo(destinatario_email, destinatario_nombre, token):
     return None
 
 
-def enviar_correo_recuperacion_async(destinatario_email, destinatario_nombre, token):
+def enviar_correo_recuperacion_async(
+    destinatario_email: str, destinatario_nombre: str, token: str,
+) -> Optional[dict]:
     """Despacha el envío del correo de recuperación sin bloquear la respuesta.
 
     La estrategia la decide ``settings.EMAIL_DELIVERY``:
@@ -64,25 +69,17 @@ def enviar_correo_recuperacion_async(destinatario_email, destinatario_nombre, to
     return _enviar_en_hilo(destinatario_email, destinatario_nombre, token)
 
 
-def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
-    """
-    Envía un correo de recuperación de contraseña usando SMTP (django.core.mail).
+def _render_html_recuperacion(destinatario_nombre: str, enlace: str) -> str:
+    """Construye el cuerpo HTML del correo de recuperación de contraseña.
 
     Args:
-        destinatario_email: Email institucional del usuario
-        destinatario_nombre: Nombre completo del usuario
-        token: Token JWT de recuperación (20 min de vida)
+        destinatario_nombre: Nombre completo a saludar en el encabezado.
+        enlace: URL absoluta del frontend para restablecer la contraseña.
 
     Returns:
-        dict: ``{"status": "sent"}`` si el envío fue aceptado por el servidor
-        SMTP, o ``{"status": "error", "error_type": ..., "detail": ...}`` si
-        falló. NOTA: "sent" significa que el servidor SMTP (Gmail) aceptó el
-        mensaje, no que el destinatario lo haya recibido — la entrega final
-        puede fallar por filtrado/cuarentena del lado del receptor.
+        El HTML completo del correo, listo para adjuntar como alternativa.
     """
-    enlace = f"{settings.FRONTEND_URL}/recovery-password/{token}"
-
-    html_content = f"""
+    return f"""
     <!DOCTYPE html>
     <html lang="es">
     <head>
@@ -165,9 +162,24 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
     </html>
     """
 
-    subject = "SIGESI - Recuperación de contraseña"
+
+def _construir_correo(
+    destinatario_email: str, destinatario_nombre: str, token: str,
+) -> EmailMultiAlternatives:
+    """Arma el mensaje de recuperación (asunto, cuerpos, cabeceras) sin enviarlo.
+
+    Args:
+        destinatario_email: Email institucional del destinatario.
+        destinatario_nombre: Nombre completo del destinatario.
+        token: Token JWT de recuperación (20 min de vida).
+
+    Returns:
+        El ``EmailMultiAlternatives`` con texto plano + alternativa HTML listo
+        para ``send()``.
+    """
+    enlace = f"{settings.FRONTEND_URL}/recovery-password/{token}"
+    html_content = _render_html_recuperacion(destinatario_nombre, enlace)
     from_email = settings.DEFAULT_FROM_EMAIL
-    text_content = strip_tags(html_content)
 
     # Cabeceras que reducen la clasificación como spam y dan una vía de
     # respuesta legítima (relevante para la entrega en buzones institucionales).
@@ -176,11 +188,36 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
         "List-Unsubscribe": f"<mailto:{settings.EMAIL_HOST_USER}>",
     }
 
+    msg = EmailMultiAlternatives(
+        "SIGESI - Recuperación de contraseña",
+        strip_tags(html_content),
+        from_email,
+        [destinatario_email],
+        headers=headers,
+    )
+    msg.attach_alternative(html_content, "text/html")
+    return msg
+
+
+def enviar_correo_recuperacion(
+    destinatario_email: str, destinatario_nombre: str, token: str,
+) -> dict:
+    """Envía el correo de recuperación de contraseña vía SMTP (django.core.mail).
+
+    Args:
+        destinatario_email: Email institucional del usuario.
+        destinatario_nombre: Nombre completo del usuario.
+        token: Token JWT de recuperación (20 min de vida).
+
+    Returns:
+        ``{"status": "sent"}`` si el servidor SMTP aceptó el mensaje, o
+        ``{"status": "error", "error_type": ..., "detail": ...}`` si falló.
+        NOTA: "sent" significa que el servidor SMTP (Gmail) aceptó el mensaje,
+        no que el destinatario lo haya recibido — la entrega final puede fallar
+        por filtrado/cuarentena del lado del receptor.
+    """
     try:
-        msg = EmailMultiAlternatives(
-            subject, text_content, from_email, [destinatario_email], headers=headers
-        )
-        msg.attach_alternative(html_content, "text/html")
+        msg = _construir_correo(destinatario_email, destinatario_nombre, token)
         msg.send(fail_silently=False)
         logger.info("Correo de recuperación aceptado por el servidor SMTP para %s", destinatario_email)
         return {"status": "sent"}

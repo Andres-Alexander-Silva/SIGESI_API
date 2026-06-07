@@ -62,11 +62,42 @@ class EvaluacionCreateUpdateSerializer(serializers.ModelSerializer):
         fields = ['estudiante', 'evaluador', 'competencia', 'tipo', 'semestre']
         extra_kwargs = {'evaluador': {'required': False}}
 
-    def validate(self, data):
-        """Aplica las reglas de evaluador por tipo y el aval gate del semillero."""
+    def validate(self, data: dict) -> dict:
+        """Valida una evaluación aplicando las reglas de negocio en orden.
+
+        Aplica la regla de evaluador según el tipo (autoevaluación fuerza el
+        evaluador al estudiante; heteroevaluación lo exige) y, si hay
+        competencia, verifica el permiso del director y el aval institucional
+        del semillero asociado.
+
+        Args:
+            data: Datos ya validados por campo (puede incluir ``tipo``,
+                ``estudiante``, ``evaluador`` y ``competencia``; en update se
+                completan desde ``self.instance``).
+
+        Returns:
+            Los ``data`` con ``evaluador`` resuelto cuando aplica.
+
+        Raises:
+            serializers.ValidationError: Si falta el evaluador en una
+                heteroevaluación o el semillero no tiene aval aprobado.
+            PermissionDenied: Si el actor no dirige el semillero de la competencia.
+        """
         request = self.context.get('request')
         user = request.user if request else None
 
+        self._aplicar_reglas_evaluador(data)
+
+        competencia = data.get('competencia') or (
+            self.instance.competencia if self.instance else None
+        )
+        self._validar_permiso_director(competencia, user)
+        self._validar_aval_competencia(competencia, user)
+
+        return data
+
+    def _aplicar_reglas_evaluador(self, data: dict) -> None:
+        """Resuelve el evaluador según el tipo de evaluación."""
         tipo = data.get('tipo') or (self.instance.tipo if self.instance else None)
         estudiante = data.get('estudiante') or (
             self.instance.estudiante if self.instance else None
@@ -75,7 +106,9 @@ class EvaluacionCreateUpdateSerializer(serializers.ModelSerializer):
         if tipo == Evaluacion.TipoChoices.AUTOEVALUACION:
             # En autoevaluación el evaluador es siempre el propio estudiante.
             data['evaluador'] = estudiante
-        elif tipo == Evaluacion.TipoChoices.HETEROEVALUACION:
+            return
+
+        if tipo == Evaluacion.TipoChoices.HETEROEVALUACION:
             evaluador = data.get('evaluador') or (
                 self.instance.evaluador if self.instance else None
             )
@@ -84,24 +117,28 @@ class EvaluacionCreateUpdateSerializer(serializers.ModelSerializer):
                     'evaluador': 'El evaluador es obligatorio para una heteroevaluación.'
                 })
 
-        competencia = data.get('competencia') or (
-            self.instance.competencia if self.instance else None
-        )
-        if competencia is not None:
-            # El Director de Semillero solo puede registrar evaluaciones de su
-            # propio semillero (en create no corre has_object_permission). El
-            # administrador omite esta restricción.
-            if (user and not user.tiene_rol(User.RolChoices.ADMINISTRADOR)
-                    and competencia.semillero.director_id != user.id):
-                raise PermissionDenied(
-                    'No puede registrar evaluaciones en un semillero que no dirige.'
-                )
+    def _validar_permiso_director(self, competencia, user) -> None:
+        """El director de semillero solo evalúa competencias de su propio semillero.
 
-            validar_semilleros_avalados(
-                [competencia.semillero], user, field_name='competencia'
+        En create no corre ``has_object_permission``; el administrador omite la
+        restricción.
+        """
+        if competencia is None:
+            return
+        if user is None or user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return
+        if competencia.semillero.director_id != user.id:
+            raise PermissionDenied(
+                'No puede registrar evaluaciones en un semillero que no dirige.'
             )
 
-        return data
+    def _validar_aval_competencia(self, competencia, user) -> None:
+        """Aval gate: el semillero de la competencia debe tener aval aprobado."""
+        if competencia is None:
+            return
+        validar_semilleros_avalados(
+            [competencia.semillero], user, field_name='competencia'
+        )
 
 
 class EvaluacionCalificarSerializer(serializers.ModelSerializer):

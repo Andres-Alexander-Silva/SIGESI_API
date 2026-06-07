@@ -1,4 +1,4 @@
-"""Siembra los Menús, Opciones y Permisos RBAC que faltan para las rutas del frontend.
+"""Siembra y reconcilia los Menús, Opciones y Permisos RBAC de las rutas del frontend.
 
 La barra lateral del cliente React y el gating de botones por acción se
 construyen *a partir de los datos* de las tablas RBAC (``Menu → Opcion →
@@ -7,11 +7,11 @@ Permiso``), que el frontend consulta por rol activo vía
 fila ``Opcion``, esa ruta nunca aparece en el menú y todos sus ``can(url, accion)``
 devuelven ``false``.
 
-La migración ``0003_data_menus_opciones_permisos`` ya sembró 6 menús y 8 opciones
-(``/dashboard``, ``/semilleros``, ``/grupos``, ``/convocatorias``, ``/reportes``,
-``/configuracion/{usuarios,menus,permisos}``). Desde entonces el frontend creció a
-~28 rutas protegidas, por lo que ~20 quedaron sin Opcion/Permiso. Este comando
-inyecta **solo lo que falta**, dejando intactas las filas existentes.
+``MENUS`` y ``OPCIONES`` declaran el conjunto **completo** (los 9 menús y las 28
+opciones de todas las rutas, incluidas las 6 + 8 que sembró la migración
+``0003_data_menus_opciones_permisos``): el comando crea lo que falte y actualiza
+los valores de lo existente que difiera. ``PERMISOS`` cubre las opciones nuevas
+(los permisos de las 8 opciones originales los gobierna la migración 0003).
 
 Decisiones de diseño:
 - ``Opcion.url`` = la ruta real del frontend (para que la navegación del sidebar
@@ -21,12 +21,16 @@ Decisiones de diseño:
 - Los flags CRUD por rol se infieren de las clases ``*RolePermission`` en
   ``apps/sigesi/decorators/permissions.py`` (ver comentarios por opción).
 
-Es idempotente: usa ``get_or_create`` (Menu por ``nombre``, Opcion por ``url``,
-Permiso por ``(opcion, rol)``), así que volver a ejecutarlo no crea duplicados.
+Es idempotente y reconciliador: las filas se ubican por su clave natural (Menu
+por ``nombre``, Opcion por ``url``, Permiso por ``(opcion, rol)``); si faltan se
+crean y, si existen pero con valores distintos a los declarados, se actualizan
+solo los campos que cambiaron (icono del menú; menú/nombre de la opción; flags
+``puede_*`` del permiso). El ``estado`` de la opción no se toca (es un
+interruptor administrable). Volver a ejecutarlo no crea duplicados.
 
 Uso:
-    python manage.py seed_rbac            # crea lo que falte
-    python manage.py seed_rbac --dry-run  # muestra qué crearía y revierte
+    python manage.py seed_rbac            # crea lo que falte y reconcilia diferencias
+    python manage.py seed_rbac --dry-run  # muestra los cambios y revierte
 """
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -35,30 +39,42 @@ from apps.sigesi.models import Menu, Opcion, Permiso
 
 
 # ── Menús ─────────────────────────────────────────────────────────────────────
-# (nombre, icono). Los íconos deben ser únicos (constraint del modelo) y resolver
-# en SIGESI_CLIENT/src/utils/iconMap.tsx (se quita el prefijo "fa-" y separadores).
-# Los menús existentes (Dashboard, Semilleros, Grupos de Investigación,
-# Convocatorias, Reportes, Configuración) se reutilizan por nombre; aquí solo van
-# los nuevos.
-MENUS_NUEVOS = [
-    ('Proyectos',   'fa-tasks'),
-    ('Planeación',  'fa-bullseye'),
-    ('Competencias', 'psychology'),
+# (nombre, icono). Conjunto COMPLETO de menús (los sembrados por la migración 0003
+# + los nuevos): el comando crea los que falten y reconcilia el icono de los que
+# existan. Los íconos deben ser únicos (constraint del modelo) y resolver en
+# SIGESI_CLIENT/src/utils/iconMap.tsx (se quita el prefijo "fa-" y separadores).
+MENUS = [
+    ('Dashboard',                'fa-gauge'),
+    ('Semilleros',               'fa-flask'),
+    ('Grupos de Investigación',  'fa-users'),
+    ('Proyectos',                'fa-tasks'),
+    ('Planeación',               'fa-bullseye'),
+    ('Competencias',             'psychology'),
+    ('Convocatorias',            'fa-bullhorn'),
+    ('Reportes',                 'fa-chart-bar'),
+    ('Configuración',            'fa-gear'),
 ]
 
 # ── Opciones ──────────────────────────────────────────────────────────────────
-# (menu_nombre, nombre_opcion, url). El menú se busca por nombre; debe existir ya
-# (sembrado por 0003) o estar en MENUS_NUEVOS.
-OPCIONES_NUEVAS = [
-    # Bajo "Semilleros" (menú existente)
+# (menu_nombre, nombre_opcion, url). Conjunto COMPLETO de opciones (las sembradas
+# por la migración 0003 + las nuevas): el comando crea las que falten y reconcilia
+# menú/nombre de las que existan (sin tocar `estado`). El menú se busca por nombre
+# y debe estar declarado en MENUS.
+OPCIONES = [
+    # Dashboard
+    ('Dashboard',                'Dashboard',                   '/dashboard'),
+
+    # Semilleros
+    ('Semilleros',               'Semilleros',                  '/semilleros'),
     ('Semilleros',               'Líneas de Investigación',     '/lineas_investigacion'),
     ('Semilleros',               'Inscripción',                 '/inscripcion'),
     ('Semilleros',               'Gestionar Miembros',          '/gestionar_miembros'),
 
-    # Bajo "Grupos de Investigación" (menú existente)
+    # Grupos de Investigación
+    ('Grupos de Investigación',  'Grupos',                      '/grupos'),
     ('Grupos de Investigación',  'Programas Académicos',        '/programas_academicos'),
 
-    # Menú nuevo "Proyectos"
+    # Proyectos
     ('Proyectos',                'Proyectos',                   '/proyectos'),
     ('Proyectos',                'Actividades',                 '/actividades'),
     ('Proyectos',                'Avances',                     '/avances'),
@@ -66,22 +82,32 @@ OPCIONES_NUEVAS = [
     ('Proyectos',                'Evaluaciones de Proyecto',    '/evaluaciones_proyecto'),
     ('Proyectos',                'Producción Académica',        '/produccion_academica'),
 
-    # Menú nuevo "Planeación"
+    # Planeación
     ('Planeación',               'Plan Estratégico',            '/plan_estrategico'),
     ('Planeación',               'Plan de Acción',              '/plan_accion'),
     ('Planeación',               'Cronograma',                  '/cronograma'),
 
-    # Menú nuevo "Competencias"
+    # Competencias
     ('Competencias',             'Competencias Investigativas', '/competencias_investigativas'),
     ('Competencias',             'Evaluaciones Investigativas', '/evaluaciones_investigativas'),
     ('Competencias',             'Estadísticas de Competencias', '/competencias_estadisticas'),
     ('Competencias',             'Perfil Investigativo',        '/perfil_investigativo'),
 
-    # Bajo "Reportes" (menú existente)
+    # Convocatorias (flujo de eventos: Evento → Convocatoria → Postulación → Participación)
+    ('Convocatorias',            'Eventos',                     '/eventos'),
+    ('Convocatorias',            'Convocatorias',               '/convocatorias'),
+    ('Convocatorias',            'Postulaciones',               '/postulaciones'),
+    ('Convocatorias',            'Participaciones en Eventos',  '/participaciones_evento'),
+
+    # Reportes
+    ('Reportes',                 'Reportes',                    '/reportes'),
     ('Reportes',                 'Analítica',                   '/analitica'),
 
-    # Bajo "Configuración" (menú existente)
+    # Configuración
+    ('Configuración',            'Usuarios',                    '/configuracion/usuarios'),
+    ('Configuración',            'Menús',                       '/configuracion/menus'),
     ('Configuración',            'Opciones',                    '/configuracion/opciones'),
+    ('Configuración',            'Permisos',                    '/configuracion/permisos'),
     ('Configuración',            'Auditoría',                   '/auditoria'),
 ]
 
@@ -99,7 +125,7 @@ OPCIONES_NUEVAS = [
 #   gate por rol): la matriz de abajo es un ENDURECIMIENTO razonable, no un
 #   espejo. La API hoy deja escribir a cualquier autenticado (gap a corregir
 #   aparte).
-PERMISOS_NUEVOS = [
+PERMISOS = [
     # url, rol, C, Cr, A, E
     # ── /proyectos — ProyectoRolePermission ──────────────────────────────────
     ('/proyectos',                  'administrador',      True,  True,  True,  True),
@@ -229,15 +255,39 @@ PERMISOS_NUEVOS = [
 
     # ── /auditoria — AuditoriaPermission (solo admin, lectura) ───────────────
     ('/auditoria',                  'administrador',      True,  False, False, False),
+
+    # ── /eventos — AdminOrReadOnlyPermission (admin escribe, todos leen) ──────
+    ('/eventos',                    'administrador',      True,  True,  True,  True),
+    ('/eventos',                    'director_grupo',     True,  False, False, False),
+    ('/eventos',                    'director_semillero', True,  False, False, False),
+    ('/eventos',                    'lider_estudiantil',  True,  False, False, False),
+    ('/eventos',                    'estudiante',         True,  False, False, False),
+
+    # ── /postulaciones — PostulacionRolePermission ───────────────────────────
+    # director_grupo no crea/edita por CRUD, pero resuelve (aprobar/rechazar);
+    # 'aprobar' en el frontend se deriva de puede_actualizar.
+    ('/postulaciones',              'administrador',      True,  True,  True,  True),
+    ('/postulaciones',              'director_grupo',     True,  False, True,  False),
+    ('/postulaciones',              'director_semillero', True,  True,  True,  True),
+    ('/postulaciones',              'lider_estudiantil',  True,  False, False, False),
+    ('/postulaciones',              'estudiante',         True,  False, False, False),
+
+    # ── /participaciones_evento — ParticipacionEventoRolePermission ──────────
+    ('/participaciones_evento',     'administrador',      True,  True,  True,  True),
+    ('/participaciones_evento',     'director_grupo',     True,  True,  True,  True),
+    ('/participaciones_evento',     'director_semillero', True,  True,  True,  True),
+    ('/participaciones_evento',     'lider_estudiantil',  True,  True,  True,  True),
+    ('/participaciones_evento',     'estudiante',         True,  False, False, False),
 ]
 
 
 class Command(BaseCommand):
-    """Inyecta los Menús/Opciones/Permisos RBAC faltantes para las rutas del frontend."""
+    """Inyecta y reconcilia los Menús/Opciones/Permisos RBAC de las rutas del frontend."""
 
     help = (
-        'Crea los Menús, Opciones y Permisos RBAC que faltan para cubrir todas '
-        'las rutas del frontend. Idempotente (no toca filas existentes).'
+        'Crea los Menús, Opciones y Permisos RBAC que faltan para cubrir las '
+        'rutas del frontend y actualiza los existentes cuyos valores difieran '
+        'de los declarados. Idempotente.'
     )
 
     def add_arguments(self, parser):
@@ -249,66 +299,87 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        """Crea menús, opciones y permisos faltantes dentro de una transacción.
+        """Crea y reconcilia menús, opciones y permisos dentro de una transacción.
 
-        Con ``--dry-run`` ejecuta todo y luego lanza una excepción controlada para
-        revertir, dejando la base de datos sin cambios. Imprime un resumen de
-        cuántas filas se crearon vs. ya existían por cada tabla.
+        Si una fila ya existe (Menu por ``nombre``, Opcion por ``url``, Permiso
+        por ``(opcion, rol)``) pero alguno de sus valores declarados difiere, se
+        actualiza solo el/los campo(s) que cambiaron. Con ``--dry-run`` ejecuta
+        todo y revierte, dejando la base de datos intacta. Imprime un resumen de
+        creados / actualizados / sin cambios por tabla.
         """
         dry_run = options['dry_run']
         stats = {
-            'menus':    {'creados': 0, 'existian': 0},
-            'opciones': {'creados': 0, 'existian': 0},
-            'permisos': {'creados': 0, 'existian': 0},
+            'menus':    {'creados': 0, 'actualizados': 0, 'sin_cambios': 0},
+            'opciones': {'creados': 0, 'actualizados': 0, 'sin_cambios': 0},
+            'permisos': {'creados': 0, 'actualizados': 0, 'sin_cambios': 0},
         }
+
+        def _reconciliar(obj, valores, tabla):
+            """Aplica los `valores` que difieran en `obj` y contabiliza el resultado."""
+            cambios = [k for k, v in valores.items() if getattr(obj, k) != v]
+            if cambios:
+                for k in cambios:
+                    setattr(obj, k, valores[k])
+                obj.save(update_fields=cambios)
+                stats[tabla]['actualizados'] += 1
+            else:
+                stats[tabla]['sin_cambios'] += 1
 
         class _Rollback(Exception):
             """Señal interna para revertir en modo --dry-run."""
 
         try:
             with transaction.atomic():
-                # 1) Menús nuevos.
+                # 1) Menús: crear los que falten; reconciliar el icono si difiere.
                 menus = {m.nombre: m for m in Menu.objects.all()}
-                for nombre, icono in MENUS_NUEVOS:
+                for nombre, icono in MENUS:
                     obj, creado = Menu.objects.get_or_create(
                         nombre=nombre, defaults={'icono': icono, 'estado': True}
                     )
                     menus[nombre] = obj
-                    stats['menus']['creados' if creado else 'existian'] += 1
+                    if creado:
+                        stats['menus']['creados'] += 1
+                    else:
+                        _reconciliar(obj, {'icono': icono}, 'menus')
 
-                # 2) Opciones nuevas.
+                # 2) Opciones: crear las que falten; reconciliar menú y nombre si
+                #    difieren (no se toca `estado`, que es un interruptor administrable).
                 opciones = {}
-                for menu_nombre, nombre, url in OPCIONES_NUEVAS:
+                for menu_nombre, nombre, url in OPCIONES:
                     menu = menus.get(menu_nombre)
                     if menu is None:
                         raise ValueError(
-                            f"El menú '{menu_nombre}' no existe; sí debería estar "
-                            f"sembrado por la migración 0003 o en MENUS_NUEVOS."
+                            f"El menú '{menu_nombre}' no está declarado en MENUS."
                         )
                     obj, creado = Opcion.objects.get_or_create(
                         url=url,
                         defaults={'menu': menu, 'nombre': nombre, 'estado': True},
                     )
                     opciones[url] = obj
-                    stats['opciones']['creados' if creado else 'existian'] += 1
+                    if creado:
+                        stats['opciones']['creados'] += 1
+                    else:
+                        _reconciliar(obj, {'menu': menu, 'nombre': nombre}, 'opciones')
 
-                # 3) Permisos nuevos.
-                for url, rol, c, cr, a, e in PERMISOS_NUEVOS:
+                # 3) Permisos: crear los nuevos; reconciliar los flags puede_* si difieren.
+                for url, rol, c, cr, a, e in PERMISOS:
                     opcion = opciones.get(url)
                     if opcion is None:
                         # La opción podría existir de una corrida previa; resuélvela.
                         opcion = Opcion.objects.get(url=url)
-                    _, creado = Permiso.objects.get_or_create(
-                        opcion=opcion,
-                        rol=rol,
-                        defaults={
-                            'puede_consultar':  c,
-                            'puede_crear':      cr,
-                            'puede_actualizar': a,
-                            'puede_eliminar':   e,
-                        },
+                    flags = {
+                        'puede_consultar':  c,
+                        'puede_crear':      cr,
+                        'puede_actualizar': a,
+                        'puede_eliminar':   e,
+                    }
+                    obj, creado = Permiso.objects.get_or_create(
+                        opcion=opcion, rol=rol, defaults=flags,
                     )
-                    stats['permisos']['creados' if creado else 'existian'] += 1
+                    if creado:
+                        stats['permisos']['creados'] += 1
+                    else:
+                        _reconciliar(obj, flags, 'permisos')
 
                 if dry_run:
                     raise _Rollback()
@@ -318,7 +389,9 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('Resumen RBAC:'))
         for tabla, s in stats.items():
             self.stdout.write(
-                f"  {tabla:9}  creados: {s['creados']:3}   ya existían: {s['existian']:3}"
+                f"  {tabla:9}  creados: {s['creados']:3}   "
+                f"actualizados: {s['actualizados']:3}   "
+                f"sin cambios: {s['sin_cambios']:3}"
             )
         if not dry_run:
             self.stdout.write(self.style.SUCCESS('Listo.'))

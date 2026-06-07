@@ -1,3 +1,4 @@
+from django.utils.decorators import method_decorator
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,11 +15,40 @@ from apps.sigesi.serializers.core.grupo_investigacion_serializer import (
 from apps.sigesi.filters.core.grupo_investigacion_filter import GrupoInvestigacionFilter
 from apps.sigesi.utils.ordering import MultiFieldOrderingFilter
 
+@method_decorator(name='list', decorator=swagger_auto_schema(
+    operation_summary="Listar grupos de investigación",
+    operation_description="Retorna la lista de grupos de investigación. Soporta filtros por nombre, código, programa_academico, director y estado (is_active).",
+    manual_parameters=[
+        openapi.Parameter(
+            name='ordering',
+            in_=openapi.IN_QUERY,
+            type=openapi.TYPE_STRING,
+            required=False,
+            description='Criterio de ordenamiento: `nombre`, `-nombre`, `fecha`, `-fecha`.',
+        ),
+    ],
+    tags=['Grupos de Investigación']
+))
+@method_decorator(name='retrieve', decorator=swagger_auto_schema(
+    operation_summary="Obtener grupo de investigación",
+    operation_description="Obtiene los detalles de un grupo de investigación.",
+    responses={200: GrupoInvestigacionSerializer},
+    tags=['Grupos de Investigación']
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary="Eliminar grupo de investigación",
+    operation_description="Elimina un grupo de investigación.",
+    tags=['Grupos de Investigación']
+))
 class GrupoInvestigacionViewSet(viewsets.ModelViewSet):
     """
     ViewSet CRUD para la gestión de Grupos de Investigación.
     """
-    queryset = GrupoInvestigacion.objects.all()
+    queryset = (
+        GrupoInvestigacion.objects
+        .select_related('programa_academico', 'director')
+        .prefetch_related('lineas_investigacion')
+    )
     permission_classes = [IsAuthenticated]
 
     filter_backends = [DjangoFilterBackend, MultiFieldOrderingFilter]
@@ -38,23 +68,6 @@ class GrupoInvestigacionViewSet(viewsets.ModelViewSet):
         return GrupoInvestigacionSerializer
 
     @swagger_auto_schema(
-        operation_summary="Listar grupos de investigación",
-        operation_description="Retorna la lista de grupos de investigación. Soporta filtros por nombre, código, programa_academico, director y estado (is_active).",
-        manual_parameters=[
-            openapi.Parameter(
-                name='ordering',
-                in_=openapi.IN_QUERY,
-                type=openapi.TYPE_STRING,
-                required=False,
-                description='Criterio de ordenamiento: `nombre`, `-nombre`, `fecha`, `-fecha`.',
-            ),
-        ],
-        tags=['Grupos de Investigación']
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
         operation_summary="Crear grupo de investigación",
         operation_description="Crea un nuevo grupo de investigación.",
         request_body=GrupoInvestigacionCreateSerializer,
@@ -66,15 +79,6 @@ class GrupoInvestigacionViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         instance = serializer.save()
         return Response(GrupoInvestigacionSerializer(instance).data, status=status.HTTP_201_CREATED)
-
-    @swagger_auto_schema(
-        operation_summary="Obtener grupo de investigación",
-        operation_description="Obtiene los detalles de un grupo de investigación.",
-        responses={200: GrupoInvestigacionSerializer},
-        tags=['Grupos de Investigación']
-    )
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary="Actualizar grupo de investigación (completo)",
@@ -104,11 +108,3 @@ class GrupoInvestigacionViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         instance = serializer.save()
         return Response(GrupoInvestigacionSerializer(instance).data)
-
-    @swagger_auto_schema(
-        operation_summary="Eliminar grupo de investigación",
-        operation_description="Elimina un grupo de investigación.",
-        tags=['Grupos de Investigación']
-    )
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)

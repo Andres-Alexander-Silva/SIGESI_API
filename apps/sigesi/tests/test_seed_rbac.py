@@ -9,9 +9,9 @@ from django.core.management import call_command
 
 from apps.sigesi.models import Menu, Opcion, Permiso
 from apps.sigesi.management.commands.seed_rbac import (
-    MENUS_NUEVOS,
-    OPCIONES_NUEVAS,
-    PERMISOS_NUEVOS,
+    MENUS,
+    OPCIONES,
+    PERMISOS,
 )
 
 
@@ -20,16 +20,17 @@ def _counts():
 
 
 @pytest.mark.django_db
-def test_seed_rbac_crea_los_faltantes():
-    """Crea exactamente los menús, opciones y permisos nuevos declarados."""
-    m0, o0, p0 = _counts()
+def test_seed_rbac_gestiona_todos_los_menus_y_opciones():
+    """Tras correr, existen exactamente los menús y opciones declarados (todos)."""
+    p0 = Permiso.objects.count()
 
     call_command('seed_rbac')
 
-    m1, o1, p1 = _counts()
-    assert m1 - m0 == len(MENUS_NUEVOS)
-    assert o1 - o0 == len(OPCIONES_NUEVAS)
-    assert p1 - p0 == len(PERMISOS_NUEVOS)
+    # MENUS/OPCIONES son el conjunto completo (migración 0003 + nuevos).
+    assert Menu.objects.count() == len(MENUS)
+    assert Opcion.objects.count() == len(OPCIONES)
+    # Los permisos declarados son para las opciones nuevas (sin permisos previos).
+    assert Permiso.objects.count() - p0 == len(PERMISOS)
 
 
 @pytest.mark.django_db
@@ -51,10 +52,61 @@ def test_dry_run_no_persiste_nada():
 
 
 @pytest.mark.django_db
+def test_reconcilia_permiso_con_flags_distintos():
+    """Si un permiso existe con flags distintos, una nueva corrida los corrige."""
+    call_command('seed_rbac')
+
+    permiso = Permiso.objects.get(opcion__url='/proyectos', rol='administrador')
+    # Lo "desincronizamos": admin debería tener CRUD total en /proyectos.
+    permiso.puede_crear = False
+    permiso.puede_eliminar = False
+    permiso.save(update_fields=['puede_crear', 'puede_eliminar'])
+
+    call_command('seed_rbac')
+
+    permiso.refresh_from_db()
+    assert permiso.puede_crear is True
+    assert permiso.puede_eliminar is True
+    # No se crean duplicados al reconciliar.
+    assert Permiso.objects.filter(
+        opcion__url='/proyectos', rol='administrador').count() == 1
+
+
+@pytest.mark.django_db
+def test_reconcilia_opcion_con_nombre_distinto():
+    """Si una opción existe con un nombre distinto al declarado, se actualiza."""
+    call_command('seed_rbac')
+
+    opcion = Opcion.objects.get(url='/proyectos')
+    opcion.nombre = 'Nombre Viejo'
+    opcion.save(update_fields=['nombre'])
+
+    call_command('seed_rbac')
+
+    opcion.refresh_from_db()
+    assert opcion.nombre == 'Proyectos'
+
+
+@pytest.mark.django_db
+def test_reconciliar_no_toca_estado_de_opcion():
+    """La reconciliación no reactiva una opción deshabilitada manualmente."""
+    call_command('seed_rbac')
+
+    opcion = Opcion.objects.get(url='/proyectos')
+    opcion.estado = False
+    opcion.save(update_fields=['estado'])
+
+    call_command('seed_rbac')
+
+    opcion.refresh_from_db()
+    assert opcion.estado is False
+
+
+@pytest.mark.django_db
 def test_opciones_usan_la_ruta_del_frontend():
     """Las opciones se crean con la URL = ruta real del frontend."""
     call_command('seed_rbac')
-    for _menu, _nombre, url in OPCIONES_NUEVAS:
+    for _menu, _nombre, url in OPCIONES:
         assert Opcion.objects.filter(url=url).exists(), f'falta opción {url}'
 
     # Las 3 rutas con desajuste can()/ruta se siembran con la RUTA, no el can().

@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.decorators import method_decorator
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -13,12 +14,53 @@ from apps.sigesi.serializers.core.proyecto_serializer import (
 from apps.sigesi.decorators.permissions import ProyectoRolePermission
 
 
+@method_decorator(name='list', decorator=swagger_auto_schema(
+    operation_summary="Listar proyectos",
+    operation_description="Retorna la lista de proyectos permitidos para el usuario autenticado.",
+    responses={200: ProyectoListSerializer(many=True)},
+    tags=["Proyectos"],
+))
+@method_decorator(name='retrieve', decorator=swagger_auto_schema(
+    operation_summary="Consultar detalle de proyecto",
+    operation_description="Retorna la información detallada de un proyecto.",
+    responses={200: ProyectoListSerializer, 404: "Proyecto no encontrado"},
+    tags=["Proyectos"],
+))
+@method_decorator(name='update', decorator=swagger_auto_schema(
+    operation_summary="Actualizar proyecto",
+    operation_description="Actualiza la información del proyecto.",
+    request_body=ProyectoCreateUpdateSerializer,
+    responses={
+        200: ProyectoListSerializer,
+        400: "Errores de validación",
+        403: "No tiene permisos para modificar",
+        404: "Proyecto no encontrado",
+    },
+    tags=["Proyectos"],
+))
+@method_decorator(name='partial_update', decorator=swagger_auto_schema(
+    operation_summary="Actualizar proyecto (parcial)",
+    operation_description="Actualiza campos específicos del proyecto.",
+    request_body=ProyectoCreateUpdateSerializer,
+    responses={
+        200: ProyectoListSerializer,
+        400: "Errores de validación",
+        403: "No tiene permisos",
+        404: "Proyecto no encontrado",
+    },
+    tags=["Proyectos"],
+))
 class ProyectoViewSet(viewsets.ModelViewSet):
     """
     ViewSet CRUD para la gestión de Proyectos.
     Integra control de acceso por roles y eliminación lógica segura.
     """
-    queryset = Proyecto.objects.filter(is_active=True).order_by('-created_at')
+    queryset = (
+        Proyecto.objects.filter(is_active=True)
+        .select_related('linea_investigacion', 'director', 'lider')
+        .prefetch_related('semilleros', 'estudiantes')
+        .order_by('-created_at')
+    )
     permission_classes = [ProyectoRolePermission]
 
     def get_serializer_class(self):
@@ -59,24 +101,6 @@ class ProyectoViewSet(viewsets.ModelViewSet):
         return queryset.none()
 
     @swagger_auto_schema(
-        operation_summary="Listar proyectos",
-        operation_description="Retorna la lista de proyectos permitidos para el usuario autenticado.",
-        responses={200: ProyectoListSerializer(many=True)},
-        tags=["Proyectos"]
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary="Consultar detalle de proyecto",
-        operation_description="Retorna la información detallada de un proyecto.",
-        responses={200: ProyectoListSerializer, 404: "Proyecto no encontrado"},
-        tags=["Proyectos"]
-    )
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
-
-    @swagger_auto_schema(
         operation_summary="Crear proyecto",
         operation_description="Crea un nuevo proyecto. Estudiantes solo pueden crear en estado Idea.",
         request_body=ProyectoCreateUpdateSerializer,
@@ -95,36 +119,6 @@ class ProyectoViewSet(viewsets.ModelViewSet):
             {'message': 'Proyecto creado con éxito', 'data': ProyectoListSerializer(proyecto).data},
             status=status.HTTP_201_CREATED
         )
-
-    @swagger_auto_schema(
-        operation_summary="Actualizar proyecto",
-        operation_description="Actualiza la información del proyecto.",
-        request_body=ProyectoCreateUpdateSerializer,
-        responses={
-            200: ProyectoListSerializer,
-            400: "Errores de validación",
-            403: "No tiene permisos para modificar",
-            404: "Proyecto no encontrado"
-        },
-        tags=["Proyectos"]
-    )
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary="Actualizar proyecto (parcial)",
-        operation_description="Actualiza campos específicos del proyecto.",
-        request_body=ProyectoCreateUpdateSerializer,
-        responses={
-            200: ProyectoListSerializer,
-            400: "Errores de validación",
-            403: "No tiene permisos",
-            404: "Proyecto no encontrado"
-        },
-        tags=["Proyectos"]
-    )
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary="Eliminar proyecto (lógico)",

@@ -1,5 +1,10 @@
+import logging
+import zipfile
+
 import openpyxl
+from openpyxl.utils.exceptions import InvalidFileException
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -21,6 +26,8 @@ from apps.sigesi.serializers.config.user_serializer import (
 from apps.sigesi.utils.ordering import MultiFieldOrderingFilter
 from apps.sigesi.filters.user_filter import UserFilter
 from apps.sigesi.decorators.permissions import UserManagementPermission
+
+logger = logging.getLogger(__name__)
 
 
 def _cell_to_str(value):
@@ -432,7 +439,6 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='bulk-upload',
             permission_classes=[IsAuthenticated], parser_classes=[MultiPartParser])
     def bulk_upload(self, request):
-        from django.db.models import Q  # Import local to avoid cluttering top or check if it's there
         if not request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return Response(
                 {"detail": "No tiene permisos para realizar esta acción."},
@@ -446,7 +452,8 @@ class UserViewSet(viewsets.ModelViewSet):
         try:
             wb = openpyxl.load_workbook(excel_file, read_only=True, data_only=True)
             sheet = wb.active
-        except Exception as e:
+        except (InvalidFileException, zipfile.BadZipFile, OSError, KeyError, ValueError) as e:
+            logger.warning('Archivo Excel inválido en carga masiva de usuarios: %s', e)
             return Response(
                 {"error": f"Error al procesar el archivo Excel: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST

@@ -1,7 +1,8 @@
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
-from django.contrib.auth import get_user_model
-from apps.sigesi.models import Proyecto, Semillero, LineaInvestigacion
+
+from apps.sigesi.models import LineaInvestigacion, Proyecto, Semillero
 from apps.sigesi.utils.aval import validar_semilleros_avalados
 
 User = get_user_model()
@@ -61,7 +62,22 @@ class ProyectoCreateUpdateSerializer(serializers.ModelSerializer):
             'estado', 'fecha_inicio', 'fecha_fin_estimada', 'fecha_cierre', 'is_active'
         ]
 
-    def validate(self, data):
+    def validate(self, data: dict) -> dict:
+        """Aplica el aval institucional sobre los semilleros del proyecto.
+
+        Resuelve los semilleros a evaluar (los enviados o, en actualización
+        parcial sin envío, los ya vinculados a la instancia) y delega la
+        comprobación de aval al validador centralizado.
+
+        Args:
+            data: Datos ya validados por campo (puede incluir ``semilleros``).
+
+        Returns:
+            Los ``data`` sin modificar.
+
+        Raises:
+            serializers.ValidationError: Si algún semillero no está avalado.
+        """
         request = self.context.get('request')
         user = request.user if request else None
 
@@ -73,43 +89,60 @@ class ProyectoCreateUpdateSerializer(serializers.ModelSerializer):
 
         return data
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict) -> Proyecto:
+        """Crea un proyecto aplicando las asignaciones automáticas de estudiante."""
         request = self.context.get('request')
         user = request.user if request else None
 
-        # Asignaciones automáticas para Estudiantes
-        if user and user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
+        # Asignaciones automáticas para Estudiantes / Líderes Estudiantiles.
+        if self._es_estudiante(user):
             validated_data['estado'] = Proyecto.EstadoChoices.IDEA
             validated_data['lider'] = user
-            
-            # Asegurar que el estudiante se incluya en los estudiantes vinculados si es necesario
-            # Como es M2M se añade después de guardar la instancia
-            
+
+        # Los M2M se extraen para asignarlos tras crear la instancia.
         semilleros = validated_data.pop('semilleros', [])
         estudiantes = validated_data.pop('estudiantes', [])
-        
+
         proyecto = Proyecto.objects.create(**validated_data)
-        
-        if semilleros:
-            proyecto.semilleros.set(semilleros)
-        if estudiantes:
-            proyecto.estudiantes.set(estudiantes)
-            
-        if user and user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
-            proyecto.estudiantes.add(user)
+        self._asignar_relaciones(proyecto, semilleros, estudiantes, user)
 
         return proyecto
 
-    def update(self, instance, validated_data):
+    def update(self, instance: Proyecto, validated_data: dict) -> Proyecto:
+        """Actualiza un proyecto bloqueando cambios de estado/líder por estudiantes."""
         request = self.context.get('request')
         user = request.user if request else None
 
-        # Prevenir que estudiantes cambien el estado o líder
-        if user and user.tiene_alguno_de([User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL]):
+        # Prevenir que estudiantes cambien el estado o líder.
+        if self._es_estudiante(user):
             validated_data.pop('estado', None)
             validated_data.pop('lider', None)
 
         return super().update(instance, validated_data)
+
+    def _es_estudiante(self, user: User) -> bool:
+        """Indica si el actor es estudiante o líder estudiantil (reglas restringidas)."""
+        return bool(user and user.tiene_alguno_de([
+            User.RolChoices.ESTUDIANTE, User.RolChoices.LIDER_ESTUDIANTIL,
+        ]))
+
+    def _asignar_relaciones(
+        self, proyecto: Proyecto, semilleros, estudiantes, user: User,
+    ) -> None:
+        """Asigna los M2M del proyecto y vincula al actor si es estudiante.
+
+        Args:
+            proyecto: Instancia ya creada sobre la que se fijan las relaciones.
+            semilleros: Semilleros a asociar (lista posiblemente vacía).
+            estudiantes: Estudiantes a asociar (lista posiblemente vacía).
+            user: Actor de la petición; si es estudiante/líder se autovincula.
+        """
+        if semilleros:
+            proyecto.semilleros.set(semilleros)
+        if estudiantes:
+            proyecto.estudiantes.set(estudiantes)
+        if self._es_estudiante(user):
+            proyecto.estudiantes.add(user)
 
 
 class ProyectoChangeStateSerializer(serializers.ModelSerializer):

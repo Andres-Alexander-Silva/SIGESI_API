@@ -1,9 +1,17 @@
 import logging
-from channels.layers import get_channel_layer
-from django.utils import timezone
+
 from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
+from django.db import DatabaseError
+from django.utils import timezone
+
+from apps.sigesi.models import Menu, Notificacion
 
 logger = logging.getLogger(__name__)
+
+User = get_user_model()
 
 
 # Nombre del grupo Channel Layer al que se suscribe PermisosConsumer por
@@ -54,9 +62,11 @@ def notificar_actualizacion_permisos(user_id, roles=None, menus_data=None, mensa
         
         logger.info(f"Notificación de permisos enviada al usuario {user_id}")
         return True
-        
-    except Exception as e:
-        logger.error(f"Error al enviar notificación de permisos: {str(e)}")
+
+    except Exception:
+        # Push WS fire-and-forget: una falla de canal/Redis no debe romper la
+        # operación que originó la notificación. Se registra con traza completa.
+        logger.exception("Error al enviar notificación de permisos al usuario %s", user_id)
         return False
 
 
@@ -71,9 +81,10 @@ def obtener_permisos_usuario(user):
         dict: Diccionario con roles y menus serializados
     """
     try:
-        from apps.sigesi.models import Menu
+        # Import diferido del serializer: evita un ciclo de importación
+        # (serializers → models/utils) al cargar este módulo.
         from apps.sigesi.serializers.config.user_serializer import MenuPerfilSerializer
-        
+
         menus = Menu.objects.filter(
             estado=True,
             opciones__estado=True,
@@ -89,8 +100,8 @@ def obtener_permisos_usuario(user):
             'roles': user.roles,
             'menus': menus_data,
         }
-    except Exception as e:
-        logger.error(f"Error obteniendo permisos del usuario {user.id}: {str(e)}")
+    except Exception:
+        logger.exception("Error obteniendo permisos del usuario %s", user.id)
         return {
             'roles': user.roles,
             'menus': [],
@@ -106,9 +117,6 @@ def notificar_cambio_permiso(permiso_obj):
     """
     try:
         # Obtener todos los usuarios que tienen este rol en su lista de roles
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        
         usuarios_rol = User.objects.filter(roles__contains=[permiso_obj.rol], is_active=True)
         
         for usuario in usuarios_rol:
@@ -123,8 +131,8 @@ def notificar_cambio_permiso(permiso_obj):
                 mensaje=f"Tu acceso a '{permiso_obj.opcion.nombre}' ha sido actualizado"
             )
             
-    except Exception as e:
-        logger.error(f"Error al notificar cambio de permiso: {str(e)}")
+    except Exception:
+        logger.exception("Error al notificar cambio de permiso")
 
 
 def notificar_cambios_permisos_multiples(rol):
@@ -136,9 +144,6 @@ def notificar_cambios_permisos_multiples(rol):
         rol: El rol cuya configuración de permisos cambió
     """
     try:
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        
         usuarios_rol = User.objects.filter(roles__contains=[rol], is_active=True)
         
         for usuario in usuarios_rol:
@@ -153,8 +158,8 @@ def notificar_cambios_permisos_multiples(rol):
                 mensaje="La configuración de permisos de tu rol ha sido actualizada"
             )
             
-    except Exception as e:
-        logger.error(f"Error al notificar cambios de permisos múltiples: {str(e)}")
+    except Exception:
+        logger.exception("Error al notificar cambios de permisos múltiples")
 
 
 # =====================================================================
@@ -181,9 +186,9 @@ def _push_event_notification(user_id, notificacion):
                 'timestamp': timezone.now().isoformat(),
             },
         )
-    except Exception as e:
-        logger.error(
-            f"Error al hacer push de evento_notification al usuario {user_id}: {e}")
+    except Exception:
+        logger.exception(
+            "Error al hacer push de evento_notification al usuario %s", user_id)
 
 
 def _serialize_notificacion(notif):
@@ -224,9 +229,6 @@ def notificar_evento_a_usuarios(usuarios_qs, *, tipo, titulo, mensaje, target=No
         Lista de ``Notificacion`` creadas (vacía si todos los destinatarios ya
         tenían la misma notificación por dedupe).
     """
-    from django.contrib.contenttypes.models import ContentType
-    from apps.sigesi.models import Notificacion
-
     ct = None
     obj_id = None
     if target is not None:
@@ -247,8 +249,17 @@ def notificar_evento_a_usuarios(usuarios_qs, *, tipo, titulo, mensaje, target=No
             'content_type': ct,
             'object_id': obj_id,
         }
-        notif, created = Notificacion.objects.update_or_create(
-            defaults=defaults, **lookup)
+        # Fire-and-forget: una falla al persistir/empujar la notificación de un
+        # usuario no debe abortar la operación que la originó (la escritura ya
+        # quedó confirmada) ni el resto del lote. Se registra y se continúa.
+        try:
+            notif, created = Notificacion.objects.update_or_create(
+                defaults=defaults, **lookup)
+        except DatabaseError:
+            logger.exception(
+                'No se pudo crear la notificación "%s" para el usuario %s',
+                tipo, getattr(usuario, 'id', usuario))
+            continue
         if created:
             _push_event_notification(usuario.id, _serialize_notificacion(notif))
         creadas.append(notif)
@@ -261,8 +272,6 @@ def _resolve_recipients_convocatoria(*, excluir=None):
     Excluye al actor cuando se pasa ``excluir`` para evitar la auto-notificación
     (p. ej. un director_semillero que crea una convocatoria en su nombre).
     """
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
     qs = User.objects.filter(
         roles__contains=['director_semillero'], is_active=True)
     if excluir is not None:
@@ -281,6 +290,4 @@ def _resolve_recipients_postulacion(postulacion):
 
 def _resolve_recipients_participacion(participacion):
     """Devuelve el participante de la participación (un único ``User``)."""
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
     return User.objects.filter(pk=participacion.participante_id)

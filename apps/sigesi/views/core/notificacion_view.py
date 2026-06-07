@@ -1,5 +1,6 @@
 """ViewSet de la bandeja personal de notificaciones."""
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -13,6 +14,31 @@ from apps.sigesi.serializers.core.notificacion_serializer import (
 )
 
 
+@method_decorator(name='list', decorator=swagger_auto_schema(
+    operation_summary='Listar mis notificaciones',
+    manual_parameters=[
+        openapi.Parameter('leida', openapi.IN_QUERY,
+                          description='Filtrar por leídas/no leídas.',
+                          type=openapi.TYPE_BOOLEAN, required=False),
+        openapi.Parameter('tipo', openapi.IN_QUERY,
+                          description='Filtrar por tipo de notificación.',
+                          type=openapi.TYPE_STRING, required=False),
+    ],
+    responses={200: NotificacionListSerializer(many=True)},
+    tags=['Notificaciones'],
+))
+@method_decorator(name='retrieve', decorator=swagger_auto_schema(
+    operation_summary='Detalle de una notificación',
+    responses={200: NotificacionListSerializer, 404: 'No encontrada'},
+    tags=['Notificaciones'],
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary='Eliminar una notificación',
+    responses={204: openapi.Response('Eliminada'),
+               403: 'No tiene permisos',
+               404: 'No encontrada'},
+    tags=['Notificaciones'],
+))
 class NotificacionViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
@@ -31,7 +57,9 @@ class NotificacionViewSet(
     serializer_class = NotificacionListSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ['leida', 'tipo']
-    http_method_names = ['get', 'delete', 'patch', 'head', 'options']
+    # 'post' habilita la acción bulk marcar-todas-leidas; no expone create
+    # (el viewset no incluye CreateModelMixin, no hay handler de creación).
+    http_method_names = ['get', 'post', 'delete', 'patch', 'head', 'options']
 
     def get_queryset(self):
         """Restringe al usuario autenticado (no se exponen otras bandejas)."""
@@ -42,43 +70,6 @@ class NotificacionViewSet(
             .filter(usuario=self.request.user)
             .select_related('content_type')
         )
-
-    @swagger_auto_schema(
-        operation_summary='Listar mis notificaciones',
-        manual_parameters=[
-            openapi.Parameter('leida', openapi.IN_QUERY,
-                              description='Filtrar por leídas/no leídas.',
-                              type=openapi.TYPE_BOOLEAN, required=False),
-            openapi.Parameter('tipo', openapi.IN_QUERY,
-                              description='Filtrar por tipo de notificación.',
-                              type=openapi.TYPE_STRING, required=False),
-        ],
-        responses={200: NotificacionListSerializer(many=True)},
-        tags=['Notificaciones'],
-    )
-    def list(self, request, *args, **kwargs):
-        """Lista las notificaciones del usuario autenticado."""
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary='Detalle de una notificación',
-        responses={200: NotificacionListSerializer, 404: 'No encontrada'},
-        tags=['Notificaciones'],
-    )
-    def retrieve(self, request, *args, **kwargs):
-        """Devuelve el detalle de una notificación propia."""
-        return super().retrieve(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary='Eliminar una notificación',
-        responses={204: openapi.Response('Eliminada'),
-                   403: 'No tiene permisos',
-                   404: 'No encontrada'},
-        tags=['Notificaciones'],
-    )
-    def destroy(self, request, *args, **kwargs):
-        """Elimina una notificación propia."""
-        return super().destroy(request, *args, **kwargs)
 
     @swagger_auto_schema(
         method='patch',

@@ -1,13 +1,25 @@
+from typing import Iterable, Optional
+
 from rest_framework import serializers
 
 from apps.sigesi.models import Semillero, User
 
 
-def validar_semilleros_avalados(semilleros, user, field_name='semilleros'):
-    """Lanza ValidationError si algún Semillero no tiene aval aprobado.
+def validar_semilleros_avalados(
+    semilleros: Iterable[Semillero],
+    user: Optional[User],
+    field_name: str = 'semilleros',
+) -> None:
+    """Lanza ``ValidationError`` si algún Semillero no tiene aval aprobado.
 
-    El administrador puede continuar siempre. `semilleros` debe ser una lista o
-    iterable de instancias `Semillero` ya cargadas.
+    Args:
+        semilleros: Iterable de instancias ``Semillero`` ya cargadas a validar.
+        user: Usuario que realiza la acción; el administrador omite la regla.
+        field_name: Clave bajo la cual se reporta el error de validación.
+
+    Raises:
+        rest_framework.serializers.ValidationError: Si uno o más semilleros no
+            están en estado de aval ``aprobado`` (y el usuario no es admin).
     """
     if user and user.is_authenticated and user.tiene_rol(User.RolChoices.ADMINISTRADOR):
         return

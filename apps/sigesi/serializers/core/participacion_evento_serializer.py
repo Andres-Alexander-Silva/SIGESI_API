@@ -68,14 +68,29 @@ class ParticipacionEventoCreateUpdateSerializer(serializers.ModelSerializer):
             )
         return value
 
-    def validate(self, data):
-        """Aplica el alcance del actor y el gate de flujo (postulación aceptada)."""
+    def validate(self, attrs: dict) -> dict:
+        """Valida una participación aplicando las reglas de negocio en orden.
+
+        Determina el actor y, salvo que sea administrador, verifica que el
+        participante esté en su alcance y que exista el respaldo de una
+        postulación aceptada (gate de flujo) para ese evento.
+
+        Args:
+            attrs: Datos ya validados por campo (incluye ``evento``,
+                ``participante`` y, opcionalmente, ``postulacion``).
+
+        Returns:
+            Los ``attrs`` sin modificar.
+
+        Raises:
+            serializers.ValidationError: Si alguna regla de negocio no se cumple.
+        """
         request = self.context.get('request')
         user = request.user if request else None
-        participante = data.get(
+        participante = attrs.get(
             'participante', getattr(self.instance, 'participante', None))
-        evento = data.get('evento', getattr(self.instance, 'evento', None))
-        postulacion = data.get(
+        evento = attrs.get('evento', getattr(self.instance, 'evento', None))
+        postulacion = attrs.get(
             'postulacion', getattr(self.instance, 'postulacion', None))
 
         es_admin = bool(
@@ -84,45 +99,58 @@ class ParticipacionEventoCreateUpdateSerializer(serializers.ModelSerializer):
         )
 
         if user and user.is_authenticated and not es_admin:
-            # 1. Alcance: el participante debe estar dentro del alcance del actor.
-            if participante is None or not participantes_en_alcance(
-                    user).filter(pk=participante.pk).exists():
+            self._validar_alcance_actor(participante, user)
+            self._validar_gate_postulacion(participante, evento, postulacion)
+
+        return attrs
+
+    def _validar_alcance_actor(self, participante, user: User) -> None:
+        """El participante debe estar dentro del alcance (grupo/semillero) del actor."""
+        if participante is None or not participantes_en_alcance(
+                user).filter(pk=participante.pk).exists():
+            raise serializers.ValidationError({
+                'participante': (
+                    'No puede registrar a este participante: no pertenece a '
+                    'su grupo o semillero.'
+                )
+            })
+
+    def _validar_gate_postulacion(
+        self, participante, evento, postulacion,
+    ) -> None:
+        """Exige el respaldo de una postulación aceptada del evento para el participante.
+
+        Si se envía ``postulacion`` explícita, valida que pertenezca al evento,
+        esté aceptada y contenga al participante; de lo contrario, comprueba que
+        exista alguna postulación aceptada del evento que lo incluya.
+        """
+        if postulacion is not None:
+            if evento is not None and postulacion.convocatoria.evento_id != evento.id:
                 raise serializers.ValidationError({
-                    'participante': (
-                        'No puede registrar a este participante: no pertenece a '
-                        'su grupo o semillero.'
+                    'postulacion': (
+                        'La postulación no corresponde al evento indicado.'
                     )
                 })
-
-            # 2. Gate de flujo: respaldo en una postulación aceptada del evento.
-            if postulacion is not None:
-                if evento is not None and postulacion.convocatoria.evento_id != evento.id:
-                    raise serializers.ValidationError({
-                        'postulacion': (
-                            'La postulación no corresponde al evento indicado.'
-                        )
-                    })
-                if postulacion.estado != Postulacion.EstadoChoices.ACEPTADA:
-                    raise serializers.ValidationError({
-                        'postulacion': 'La postulación indicada no está aceptada.'
-                    })
-                if not postulacion.estudiantes.filter(
-                        pk=participante.pk).exists():
-                    raise serializers.ValidationError({
-                        'participante': (
-                            'El participante no figura en la postulación indicada.'
-                        )
-                    })
-            elif evento is not None and not Postulacion.objects.filter(
-                    convocatoria__evento=evento,
-                    estado=Postulacion.EstadoChoices.ACEPTADA,
-                    estudiantes=participante,
-            ).exists():
+            if postulacion.estado != Postulacion.EstadoChoices.ACEPTADA:
+                raise serializers.ValidationError({
+                    'postulacion': 'La postulación indicada no está aceptada.'
+                })
+            if not postulacion.estudiantes.filter(
+                    pk=participante.pk).exists():
                 raise serializers.ValidationError({
                     'participante': (
-                        'No existe una postulación aceptada que habilite la '
-                        'participación de este participante en el evento.'
+                        'El participante no figura en la postulación indicada.'
                     )
                 })
-
-        return data
+            return
+        if evento is not None and not Postulacion.objects.filter(
+                convocatoria__evento=evento,
+                estado=Postulacion.EstadoChoices.ACEPTADA,
+                estudiantes=participante,
+        ).exists():
+            raise serializers.ValidationError({
+                'participante': (
+                    'No existe una postulación aceptada que habilite la '
+                    'participación de este participante en el evento.'
+                )
+            })

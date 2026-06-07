@@ -1,3 +1,4 @@
+import logging
 import os
 
 from django.http import FileResponse
@@ -16,13 +17,23 @@ from apps.sigesi.serializers.core.semillero_serializer import (
 )
 from apps.sigesi.decorators.permissions import SemilleroRolePermission
 
+logger = logging.getLogger(__name__)
+
 
 class SemilleroViewSet(viewsets.ModelViewSet):
     """
     ViewSet CRUD para la gestión de Semilleros.
     Integra control de acceso por roles y eliminación lógica segura.
     """
-    queryset = Semillero.objects.all().order_by('nombre')
+    queryset = (
+        Semillero.objects
+        .select_related(
+            'grupo_investigacion', 'director', 'lider_estudiantil',
+            'usuario_aprobacion',
+        )
+        .prefetch_related('lineas_investigacion')
+        .order_by('nombre')
+    )
     permission_classes = [SemilleroRolePermission]
 
     def get_serializer_class(self):
@@ -191,10 +202,17 @@ class SemilleroViewSet(viewsets.ModelViewSet):
         )
         was_aprobado = semillero.estado_aval == Semillero.EstadoAvalChoices.APROBADO
 
-        # Limpieza de archivo anterior para evitar archivos huérfanos
+        # Limpieza de archivo anterior para evitar archivos huérfanos. Una falla
+        # de E/S al borrar el archivo previo no debe abortar la actualización del
+        # aval: se registra y se continúa (deja un huérfano, no rompe la petición).
         nuevo_archivo = serializer.validated_data.get('archivo_aval')
         if nuevo_archivo and semillero.archivo_aval:
-            semillero.archivo_aval.delete(save=False)
+            try:
+                semillero.archivo_aval.delete(save=False)
+            except OSError:
+                logger.warning(
+                    'No se pudo eliminar el archivo de aval anterior del semillero %s',
+                    semillero.pk, exc_info=True)
 
         serializer.save()
 

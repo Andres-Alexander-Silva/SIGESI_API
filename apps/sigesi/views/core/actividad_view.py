@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.db import models
+from django.utils.decorators import method_decorator
 
 from apps.sigesi.models import Actividad, User
 from apps.sigesi.serializers.core.actividad_serializer import (
@@ -12,6 +13,52 @@ from apps.sigesi.serializers.core.actividad_serializer import (
 from apps.sigesi.decorators.permissions import ActividadRolePermission
 
 
+@method_decorator(name='list', decorator=swagger_auto_schema(
+    operation_summary="Listar actividades",
+    operation_description="Retorna la lista de actividades permitidas para el usuario autenticado.",
+    responses={200: ActividadListSerializer(many=True)},
+    tags=["Actividades"]
+))
+@method_decorator(name='retrieve', decorator=swagger_auto_schema(
+    operation_summary="Consultar detalle de actividad",
+    operation_description="Retorna la información detallada de una actividad.",
+    responses={200: ActividadListSerializer, 404: "Actividad no encontrada"},
+    tags=["Actividades"]
+))
+@method_decorator(name='update', decorator=swagger_auto_schema(
+    operation_summary="Actualizar actividad",
+    operation_description="Actualiza la información completa de una actividad.",
+    request_body=ActividadCreateUpdateSerializer,
+    responses={
+        200: ActividadListSerializer,
+        400: "Errores de validación",
+        403: "No tiene permisos para modificar",
+        404: "Actividad no encontrada"
+    },
+    tags=["Actividades"]
+))
+@method_decorator(name='partial_update', decorator=swagger_auto_schema(
+    operation_summary="Actualizar actividad (parcial)",
+    operation_description="Actualiza campos específicos de una actividad.",
+    request_body=ActividadCreateUpdateSerializer,
+    responses={
+        200: ActividadListSerializer,
+        400: "Errores de validación",
+        403: "No tiene permisos",
+        404: "Actividad no encontrada"
+    },
+    tags=["Actividades"]
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary="Eliminar actividad",
+    operation_description="Elimina una actividad (eliminación física).",
+    responses={
+        204: openapi.Response("Actividad eliminada correctamente"),
+        403: openapi.Response("No tiene permisos"),
+        404: openapi.Response("Actividad no encontrada")
+    },
+    tags=["Actividades"]
+))
 class ActividadViewSet(viewsets.ModelViewSet):
     """
     ViewSet CRUD para la gestión de Actividades.
@@ -57,24 +104,6 @@ class ActividadViewSet(viewsets.ModelViewSet):
         return queryset.none()
 
     @swagger_auto_schema(
-        operation_summary="Listar actividades",
-        operation_description="Retorna la lista de actividades permitidas para el usuario autenticado.",
-        responses={200: ActividadListSerializer(many=True)},
-        tags=["Actividades"]
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary="Consultar detalle de actividad",
-        operation_description="Retorna la información detallada de una actividad.",
-        responses={200: ActividadListSerializer, 404: "Actividad no encontrada"},
-        tags=["Actividades"]
-    )
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
-
-    @swagger_auto_schema(
         operation_summary="Crear actividad",
         operation_description="Crea una nueva actividad.",
         request_body=ActividadCreateUpdateSerializer,
@@ -95,46 +124,3 @@ class ActividadViewSet(viewsets.ModelViewSet):
             {'message': 'Actividad creada con éxito', 'data': ActividadListSerializer(actividad).data},
             status=status.HTTP_201_CREATED
         )
-
-    @swagger_auto_schema(
-        operation_summary="Actualizar actividad",
-        operation_description="Actualiza la información completa de una actividad.",
-        request_body=ActividadCreateUpdateSerializer,
-        responses={
-            200: ActividadListSerializer,
-            400: "Errores de validación",
-            403: "No tiene permisos para modificar",
-            404: "Actividad no encontrada"
-        },
-        tags=["Actividades"]
-    )
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary="Actualizar actividad (parcial)",
-        operation_description="Actualiza campos específicos de una actividad.",
-        request_body=ActividadCreateUpdateSerializer,
-        responses={
-            200: ActividadListSerializer,
-            400: "Errores de validación",
-            403: "No tiene permisos",
-            404: "Actividad no encontrada"
-        },
-        tags=["Actividades"]
-    )
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary="Eliminar actividad",
-        operation_description="Elimina una actividad (eliminación física).",
-        responses={
-            204: openapi.Response("Actividad eliminada correctamente"),
-            403: openapi.Response("No tiene permisos"),
-            404: openapi.Response("Actividad no encontrada")
-        },
-        tags=["Actividades"]
-    )
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)

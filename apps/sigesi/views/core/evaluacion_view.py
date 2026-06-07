@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from django.utils.decorators import method_decorator
 
 from apps.sigesi.models import Evaluacion, User
 from apps.sigesi.serializers.core.evaluacion_serializer import (
@@ -16,6 +17,74 @@ from apps.sigesi.decorators.permissions import (
 )
 
 
+@method_decorator(name='list', decorator=swagger_auto_schema(
+    operation_summary='Listar evaluaciones',
+    operation_description=(
+        'Retorna las evaluaciones visibles para el usuario autenticado. '
+        'Admite los filtros opcionales `estudiante`, `competencia`, `tipo` y '
+        '`semestre`.'
+    ),
+    manual_parameters=[
+        openapi.Parameter(
+            'estudiante', openapi.IN_QUERY,
+            description='Filtrar por ID del estudiante evaluado.',
+            type=openapi.TYPE_INTEGER, required=False,
+        ),
+        openapi.Parameter(
+            'competencia', openapi.IN_QUERY,
+            description='Filtrar por ID de competencia.',
+            type=openapi.TYPE_INTEGER, required=False,
+        ),
+        openapi.Parameter(
+            'tipo', openapi.IN_QUERY,
+            description='Filtrar por tipo (autoevaluacion, heteroevaluacion).',
+            type=openapi.TYPE_STRING, required=False,
+        ),
+        openapi.Parameter(
+            'semestre', openapi.IN_QUERY,
+            description='Filtrar por semestre (ej: 2025-1).',
+            type=openapi.TYPE_STRING, required=False,
+        ),
+    ],
+    responses={200: EvaluacionListSerializer(many=True)},
+    tags=['Evaluaciones'],
+))
+@method_decorator(name='retrieve', decorator=swagger_auto_schema(
+    operation_summary='Consultar detalle de evaluación',
+    responses={200: EvaluacionListSerializer, 404: 'Evaluación no encontrada'},
+    tags=['Evaluaciones'],
+))
+@method_decorator(name='update', decorator=swagger_auto_schema(
+    operation_summary='Actualizar evaluación',
+    request_body=EvaluacionCreateUpdateSerializer,
+    responses={
+        200: EvaluacionListSerializer,
+        400: 'Errores de validación (incluye aval no aprobado)',
+        403: 'No tiene permisos',
+        404: 'Evaluación no encontrada',
+    },
+    tags=['Evaluaciones'],
+))
+@method_decorator(name='partial_update', decorator=swagger_auto_schema(
+    operation_summary='Actualizar evaluación (parcial)',
+    request_body=EvaluacionCreateUpdateSerializer,
+    responses={
+        200: EvaluacionListSerializer,
+        400: 'Errores de validación (incluye aval no aprobado)',
+        403: 'No tiene permisos',
+        404: 'Evaluación no encontrada',
+    },
+    tags=['Evaluaciones'],
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary='Eliminar evaluación',
+    responses={
+        204: openapi.Response('Evaluación eliminada correctamente'),
+        403: openapi.Response('No tiene permisos'),
+        404: openapi.Response('Evaluación no encontrada'),
+    },
+    tags=['Evaluaciones'],
+))
 class EvaluacionViewSet(viewsets.ModelViewSet):
     """ViewSet CRUD para las evaluaciones de competencias de los estudiantes.
 
@@ -89,51 +158,6 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
         return queryset.none()
 
     @swagger_auto_schema(
-        operation_summary='Listar evaluaciones',
-        operation_description=(
-            'Retorna las evaluaciones visibles para el usuario autenticado. '
-            'Admite los filtros opcionales `estudiante`, `competencia`, `tipo` y '
-            '`semestre`.'
-        ),
-        manual_parameters=[
-            openapi.Parameter(
-                'estudiante', openapi.IN_QUERY,
-                description='Filtrar por ID del estudiante evaluado.',
-                type=openapi.TYPE_INTEGER, required=False,
-            ),
-            openapi.Parameter(
-                'competencia', openapi.IN_QUERY,
-                description='Filtrar por ID de competencia.',
-                type=openapi.TYPE_INTEGER, required=False,
-            ),
-            openapi.Parameter(
-                'tipo', openapi.IN_QUERY,
-                description='Filtrar por tipo (autoevaluacion, heteroevaluacion).',
-                type=openapi.TYPE_STRING, required=False,
-            ),
-            openapi.Parameter(
-                'semestre', openapi.IN_QUERY,
-                description='Filtrar por semestre (ej: 2025-1).',
-                type=openapi.TYPE_STRING, required=False,
-            ),
-        ],
-        responses={200: EvaluacionListSerializer(many=True)},
-        tags=['Evaluaciones'],
-    )
-    def list(self, request, *args, **kwargs):
-        """Lista las evaluaciones visibles para el usuario."""
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary='Consultar detalle de evaluación',
-        responses={200: EvaluacionListSerializer, 404: 'Evaluación no encontrada'},
-        tags=['Evaluaciones'],
-    )
-    def retrieve(self, request, *args, **kwargs):
-        """Devuelve el detalle de una evaluación, incluyendo la competencia."""
-        return super().retrieve(request, *args, **kwargs)
-
-    @swagger_auto_schema(
         operation_summary='Crear evaluación',
         operation_description=(
             'Registra una evaluación. No acepta `puntaje`, `observaciones` ni '
@@ -162,49 +186,6 @@ class EvaluacionViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
-
-    @swagger_auto_schema(
-        operation_summary='Actualizar evaluación',
-        request_body=EvaluacionCreateUpdateSerializer,
-        responses={
-            200: EvaluacionListSerializer,
-            400: 'Errores de validación (incluye aval no aprobado)',
-            403: 'No tiene permisos',
-            404: 'Evaluación no encontrada',
-        },
-        tags=['Evaluaciones'],
-    )
-    def update(self, request, *args, **kwargs):
-        """Actualiza por completo el encabezado de una evaluación."""
-        return super().update(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary='Actualizar evaluación (parcial)',
-        request_body=EvaluacionCreateUpdateSerializer,
-        responses={
-            200: EvaluacionListSerializer,
-            400: 'Errores de validación (incluye aval no aprobado)',
-            403: 'No tiene permisos',
-            404: 'Evaluación no encontrada',
-        },
-        tags=['Evaluaciones'],
-    )
-    def partial_update(self, request, *args, **kwargs):
-        """Actualiza parcialmente el encabezado de una evaluación."""
-        return super().partial_update(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary='Eliminar evaluación',
-        responses={
-            204: openapi.Response('Evaluación eliminada correctamente'),
-            403: openapi.Response('No tiene permisos'),
-            404: openapi.Response('Evaluación no encontrada'),
-        },
-        tags=['Evaluaciones'],
-    )
-    def destroy(self, request, *args, **kwargs):
-        """Elimina una evaluación."""
-        return super().destroy(request, *args, **kwargs)
 
     @swagger_auto_schema(
         methods=['post', 'patch'],

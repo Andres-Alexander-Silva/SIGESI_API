@@ -9,7 +9,8 @@ Cubre las dos clases de mejora:
 """
 import pytest
 from django.contrib.auth import get_user_model
-from django.db import DataError, IntegrityError
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import DatabaseError, DataError, IntegrityError, OperationalError
 
 from apps.sigesi.utils.exception_handler import custom_exception_handler
 
@@ -182,6 +183,33 @@ def test_handler_data_error():
     resp = custom_exception_handler(DataError('value too long'), {'view': None})
     assert resp.status_code == 400
     assert resp.data == {'detail': 'Uno de los valores enviados excede el tamaño permitido.'}
+
+
+def test_handler_validation_error_de_modelo():
+    resp = custom_exception_handler(
+        DjangoValidationError(['Valor no permitido.', 'Revise el dato.']),
+        {'view': None},
+    )
+    assert resp.status_code == 400
+    assert resp.data == {'detail': 'Valor no permitido. Revise el dato.'}
+
+
+def test_handler_operational_error_503():
+    resp = custom_exception_handler(
+        OperationalError('could not connect to server'), {'view': None},
+    )
+    assert resp.status_code == 503
+    assert resp.data == {
+        'detail': 'El servicio no está disponible temporalmente. Intente nuevamente más tarde.'
+    }
+
+
+def test_handler_database_error_503():
+    resp = custom_exception_handler(DatabaseError('db caída'), {'view': None})
+    assert resp.status_code == 503
+    assert resp.data == {
+        'detail': 'El servicio no está disponible temporalmente. Intente nuevamente más tarde.'
+    }
 
 
 def test_handler_excepcion_no_controlada():

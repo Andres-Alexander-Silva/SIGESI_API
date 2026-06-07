@@ -1,3 +1,4 @@
+from django.utils.decorators import method_decorator
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
@@ -15,6 +16,31 @@ from apps.sigesi.utils.notifications import (
 )
 
 
+@method_decorator(name='list', decorator=swagger_auto_schema(
+    operation_summary='Listar convocatorias',
+    manual_parameters=[
+        openapi.Parameter('evento', openapi.IN_QUERY, description='Filtrar por ID de evento.',
+                          type=openapi.TYPE_INTEGER, required=False),
+        openapi.Parameter('estado', openapi.IN_QUERY, description='Filtrar por estado.',
+                          type=openapi.TYPE_STRING, required=False),
+        openapi.Parameter('tipo', openapi.IN_QUERY, description='Filtrar por tipo (interna/externa).',
+                          type=openapi.TYPE_STRING, required=False),
+    ],
+    responses={200: ConvocatoriaListSerializer(many=True)},
+    tags=['Convocatorias'],
+))
+@method_decorator(name='retrieve', decorator=swagger_auto_schema(
+    operation_summary='Consultar detalle de convocatoria',
+    responses={200: ConvocatoriaListSerializer, 404: 'Convocatoria no encontrada'},
+    tags=['Convocatorias'],
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary='Eliminar convocatoria',
+    responses={204: openapi.Response('Convocatoria eliminada correctamente'),
+               403: openapi.Response('No tiene permisos'),
+               404: openapi.Response('Convocatoria no encontrada')},
+    tags=['Convocatorias'],
+))
 class ConvocatoriaViewSet(viewsets.ModelViewSet):
     """ViewSet CRUD para las convocatorias asociadas a un evento.
 
@@ -33,32 +59,6 @@ class ConvocatoriaViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update']:
             return ConvocatoriaCreateUpdateSerializer
         return ConvocatoriaListSerializer
-
-    @swagger_auto_schema(
-        operation_summary='Listar convocatorias',
-        manual_parameters=[
-            openapi.Parameter('evento', openapi.IN_QUERY, description='Filtrar por ID de evento.',
-                              type=openapi.TYPE_INTEGER, required=False),
-            openapi.Parameter('estado', openapi.IN_QUERY, description='Filtrar por estado.',
-                              type=openapi.TYPE_STRING, required=False),
-            openapi.Parameter('tipo', openapi.IN_QUERY, description='Filtrar por tipo (interna/externa).',
-                              type=openapi.TYPE_STRING, required=False),
-        ],
-        responses={200: ConvocatoriaListSerializer(many=True)},
-        tags=['Convocatorias'],
-    )
-    def list(self, request, *args, **kwargs):
-        """Lista las convocatorias."""
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        operation_summary='Consultar detalle de convocatoria',
-        responses={200: ConvocatoriaListSerializer, 404: 'Convocatoria no encontrada'},
-        tags=['Convocatorias'],
-    )
-    def retrieve(self, request, *args, **kwargs):
-        """Devuelve el detalle de una convocatoria, incluyendo su evento."""
-        return super().retrieve(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary='Crear convocatoria',
@@ -144,14 +144,3 @@ class ConvocatoriaViewSet(viewsets.ModelViewSet):
             ),
             target=convocatoria,
         )
-
-    @swagger_auto_schema(
-        operation_summary='Eliminar convocatoria',
-        responses={204: openapi.Response('Convocatoria eliminada correctamente'),
-                   403: openapi.Response('No tiene permisos'),
-                   404: openapi.Response('Convocatoria no encontrada')},
-        tags=['Convocatorias'],
-    )
-    def destroy(self, request, *args, **kwargs):
-        """Elimina una convocatoria (Administrador / Director de Grupo)."""
-        return super().destroy(request, *args, **kwargs)

@@ -1,3 +1,4 @@
+from django.utils.decorators import method_decorator
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,6 +15,31 @@ from apps.sigesi.serializers.core.linea_investigacion_serializer import (
 from apps.sigesi.filters.core.linea_investigacion_filter import LineaInvestigacionFilter
 from apps.sigesi.utils.ordering import MultiFieldOrderingFilter
 
+@method_decorator(name='list', decorator=swagger_auto_schema(
+    operation_summary="Listar líneas de investigación",
+    operation_description="Retorna la lista de líneas de investigación. Soporta filtros por nombre y estado (is_active).",
+    manual_parameters=[
+        openapi.Parameter(
+            name='ordering',
+            in_=openapi.IN_QUERY,
+            type=openapi.TYPE_STRING,
+            required=False,
+            description='Criterio de ordenamiento: `nombre`, `-nombre`, `fecha`, `-fecha`.',
+        ),
+    ],
+    tags=['Líneas de Investigación']
+))
+@method_decorator(name='retrieve', decorator=swagger_auto_schema(
+    operation_summary="Obtener línea de investigación",
+    operation_description="Obtiene los detalles de una línea de investigación.",
+    responses={200: LineaInvestigacionSerializer},
+    tags=['Líneas de Investigación']
+))
+@method_decorator(name='destroy', decorator=swagger_auto_schema(
+    operation_summary="Eliminar línea de investigación",
+    operation_description="Elimina una línea de investigación.",
+    tags=['Líneas de Investigación']
+))
 class LineaInvestigacionViewSet(viewsets.ModelViewSet):
     """
     ViewSet CRUD para la gestión de Líneas de Investigación.
@@ -38,23 +64,6 @@ class LineaInvestigacionViewSet(viewsets.ModelViewSet):
         return LineaInvestigacionSerializer
 
     @swagger_auto_schema(
-        operation_summary="Listar líneas de investigación",
-        operation_description="Retorna la lista de líneas de investigación. Soporta filtros por nombre y estado (is_active).",
-        manual_parameters=[
-            openapi.Parameter(
-                name='ordering',
-                in_=openapi.IN_QUERY,
-                type=openapi.TYPE_STRING,
-                required=False,
-                description='Criterio de ordenamiento: `nombre`, `-nombre`, `fecha`, `-fecha`.',
-            ),
-        ],
-        tags=['Líneas de Investigación']
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
         operation_summary="Crear línea de investigación",
         operation_description="Crea una nueva línea de investigación.",
         request_body=LineaInvestigacionCreateSerializer,
@@ -66,15 +75,6 @@ class LineaInvestigacionViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         instance = serializer.save()
         return Response(LineaInvestigacionSerializer(instance).data, status=status.HTTP_201_CREATED)
-
-    @swagger_auto_schema(
-        operation_summary="Obtener línea de investigación",
-        operation_description="Obtiene los detalles de una línea de investigación.",
-        responses={200: LineaInvestigacionSerializer},
-        tags=['Líneas de Investigación']
-    )
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
 
     @swagger_auto_schema(
         operation_summary="Actualizar línea de investigación (completo)",
@@ -104,11 +104,3 @@ class LineaInvestigacionViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         instance = serializer.save()
         return Response(LineaInvestigacionSerializer(instance).data)
-
-    @swagger_auto_schema(
-        operation_summary="Eliminar línea de investigación",
-        operation_description="Elimina una línea de investigación.",
-        tags=['Líneas de Investigación']
-    )
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
