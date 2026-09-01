@@ -1,3 +1,7 @@
+import logging
+import secrets
+from datetime import timedelta
+
 import openpyxl
 from django.db import IntegrityError, transaction
 from rest_framework import viewsets, status
@@ -5,10 +9,14 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
+from rest_framework_simplejwt.tokens import AccessToken
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from apps.sigesi.models import User, Menu, ProgramaAcademico
+from apps.sigesi.utils.email_service import enviar_correo_recuperacion_async
+
+logger = logging.getLogger(__name__)
 from apps.sigesi.serializers.config.user_serializer import (
     UserSerializer,
     UserCreateSerializer,
@@ -653,8 +661,27 @@ class UserViewSet(viewsets.ModelViewSet):
                         codigo_estudiantil=user_data['codigo_estudiantil'],
                         programa_academico_id=user_data['programa_academico_id'],
                     )
-                    user.set_password(user_data['cedula'])
+                    # Contraseña inicial aleatoria (nunca la cédula, que es un dato
+                    # semi-público): el usuario la establece por su cuenta a través
+                    # del mismo flujo de "recuperar contraseña" usado para el olvido.
+                    user.set_password(secrets.token_urlsafe(24))
                     user.save()
+
+                token = AccessToken.for_user(user)
+                token.set_exp(lifetime=timedelta(minutes=20))
+                token['token_type'] = 'password_recovery'
+                destinatario_email = user.email or user.correo_personal
+                res = enviar_correo_recuperacion_async(
+                    destinatario_email=destinatario_email,
+                    destinatario_nombre=user.get_full_name(),
+                    token=str(token),
+                )
+                if res is not None and res.get('status') != 'sent':
+                    logger.error(
+                        "Carga masiva: usuario %s creado pero falló el envío del "
+                        "correo para establecer contraseña: %s",
+                        user.username, res,
+                    )
                 creados += 1
             except IntegrityError:
                 errores.append({

@@ -99,7 +99,7 @@ def test_upload_evidencia_invalid_extension(auth_client, admin_user, actividad):
 def test_upload_evidencia_too_large(auth_client, admin_user, actividad):
     ev = _evidencia(actividad, admin_user)
     client = auth_client(admin_user)
-    big = SimpleUploadedFile('big.pdf', b'x' * (6 * 1024 * 1024), content_type='application/pdf')
+    big = SimpleUploadedFile('big.pdf', b'x' * (21 * 1024 * 1024), content_type='application/pdf')
     resp = client.patch(f'{AVANCES_URL}{ev.id}/archive/upload/', {'file': big}, format='multipart')
     assert resp.status_code == 400
 

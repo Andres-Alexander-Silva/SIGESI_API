@@ -179,3 +179,14 @@ def test_recuperacion_with_unknown_email_returns_generic_message(api_client):
     resp = api_client.post(RECUPERACION_URL, {'email': 'nobody@example.com'}, format='json')
     assert resp.status_code == 200
     assert 'recibirás un enlace' in resp.json()['message']
+
+
+@pytest.mark.django_db
+def test_login_is_rate_limited_after_repeated_attempts(api_client, estudiante):
+    """RNF-03: mitigación de fuerza bruta en /auth/login/ (DEFAULT_THROTTLE_RATES['login'] = '5/min')."""
+    for _ in range(5):
+        resp = api_client.post(LOGIN_URL, {'email': estudiante.email, 'password': 'wrong'}, format='json')
+        assert resp.status_code == 400
+
+    resp = api_client.post(LOGIN_URL, {'email': estudiante.email, 'password': 'wrong'}, format='json')
+    assert resp.status_code == 429

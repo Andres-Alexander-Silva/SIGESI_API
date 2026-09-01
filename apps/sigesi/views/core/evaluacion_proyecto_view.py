@@ -69,7 +69,7 @@ class EvaluacionProyectoViewSet(viewsets.ModelViewSet):
         if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return qs
 
-        if user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.DOCENTE]):
+        if user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
             # Pueden ver evaluaciones de proyectos de sus semilleros o que dirigen
             return qs.filter(
                 Q(evaluador=user) |

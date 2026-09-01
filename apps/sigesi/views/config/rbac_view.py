@@ -1,11 +1,11 @@
 from rest_framework import viewsets, status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from apps.sigesi.models import Menu, Opcion, Permiso
 from apps.sigesi.serializers.config.rbac_serializer import MenuSerializer, OpcionSerializer, PermisoSerializer
 from apps.sigesi.utils.notifications import notificar_cambio_permiso, notificar_cambios_permisos_multiples
+from apps.sigesi.decorators.permissions import AdminOrReadOnlyPermission
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -17,7 +17,7 @@ class MenuViewSet(viewsets.ModelViewSet):
     """
     queryset = Menu.objects.all()
     serializer_class = MenuSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AdminOrReadOnlyPermission]
 
     @swagger_auto_schema(
         operation_summary="Listar menús",
@@ -117,7 +117,7 @@ class OpcionViewSet(viewsets.ModelViewSet):
     """
     queryset = Opcion.objects.all()
     serializer_class = OpcionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AdminOrReadOnlyPermission]
 
     @swagger_auto_schema(
         operation_summary="Listar opciones",
@@ -221,7 +221,7 @@ class PermisoViewSet(viewsets.ModelViewSet):
     """
     queryset = Permiso.objects.all()
     serializer_class = PermisoSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AdminOrReadOnlyPermission]
 
     @swagger_auto_schema(
         operation_summary="Listar permisos",

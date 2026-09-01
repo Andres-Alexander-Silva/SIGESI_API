@@ -1,7 +1,7 @@
 """Smoke tests for /api/v1/core/grupos-investigacion/.
 
-GrupoInvestigacionViewSet uses IsAuthenticated only — any authenticated user
-can read/write. Tests document that behavior.
+GrupoInvestigacionViewSet uses AdminOrReadOnlyPermission: lectura abierta a
+cualquier autenticado, escritura reservada al administrador.
 """
 from datetime import date
 
@@ -37,3 +37,18 @@ def test_estudiante_can_list_grupos(auth_client, estudiante, grupo):
 def test_unauthenticated_returns_401(api_client):
     resp = api_client.get(URL)
     assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+def test_estudiante_cannot_create_grupo(auth_client, estudiante, programa, director_grupo):
+    client = auth_client(estudiante)
+    resp = client.post(URL, {
+        'nombre': 'Intento no autorizado',
+        'codigo': 'INT',
+        'descripcion': 'desc',
+        'fecha_creacion': str(date.today()),
+        'programa_academico': programa.id,
+        'director': director_grupo.id,
+        'is_active': True,
+    }, format='json')
+    assert resp.status_code == 403
