@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth import get_user_model
 from apps.sigesi.models import Semillero, GrupoInvestigacion
+from apps.sigesi.utils.download import MAX_UPLOAD_SIZE, MAX_UPLOAD_SIZE_MB
 
 User = get_user_model()
 
@@ -64,10 +65,9 @@ class SemilleroAvalSerializer(serializers.ModelSerializer):
             if ext != '.pdf':
                 raise serializers.ValidationError("El archivo del aval debe ser un documento PDF (.pdf).")
             
-            # Limitar el tamaño a 5 MB
-            max_size = 5 * 1024 * 1024
-            if value.size > max_size:
-                raise serializers.ValidationError("El tamaño del archivo no puede exceder los 5 MB.")
+            # RNF-07: límite físico de 20 MB por documento.
+            if value.size > MAX_UPLOAD_SIZE:
+                raise serializers.ValidationError(f"El tamaño del archivo no puede exceder los {MAX_UPLOAD_SIZE_MB} MB.")
         return value
 
     def validate(self, data):

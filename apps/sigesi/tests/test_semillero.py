@@ -158,8 +158,8 @@ def test_admin_aval_patch_with_invalid_extension_fails(auth_client, admin_user, 
 @pytest.mark.django_db
 def test_admin_aval_patch_with_excessive_size_fails(auth_client, admin_user, semillero_sin_aprobar):
     client = auth_client(admin_user)
-    # Generar datos de 5.1 MB
-    large_data = b"a" * (5 * 1024 * 1024 + 1024)
+    # Generar datos de 20.1 MB
+    large_data = b"a" * (20 * 1024 * 1024 + 1024)
     large_pdf = SimpleUploadedFile("large_aval.pdf", large_data, content_type="application/pdf")
     resp = client.patch(
         f'{URL}{semillero_sin_aprobar.id}/aval/',
@@ -173,7 +173,7 @@ def test_admin_aval_patch_with_excessive_size_fails(auth_client, admin_user, sem
     )
     assert resp.status_code == 400
     assert "archivo_aval" in resp.json()
-    assert "exceder los 5 MB" in resp.json()["archivo_aval"][0]
+    assert "exceder los 20 MB" in resp.json()["archivo_aval"][0]
 
 
 @pytest.mark.django_db

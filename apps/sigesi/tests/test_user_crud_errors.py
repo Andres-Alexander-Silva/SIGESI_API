@@ -24,7 +24,7 @@ def _payload(**overrides):
         'username': 'nuevo_user',
         'cedula': 'CC900001',
         'correo_personal': 'nuevo_user@example.com',
-        'password': 'password123',
+        'password': 'claveSegura1',
         'first_name': 'Nuevo',
         'last_name': 'Usuario',
         'codigo_estudiantil': '900001',

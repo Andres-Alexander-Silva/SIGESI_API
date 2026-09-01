@@ -167,6 +167,10 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ),
+    'DEFAULT_THROTTLE_RATES': {
+        # Mitiga fuerza bruta sobre /auth/login/ (ver LoginRateThrottle).
+        'login': '5/min',
+    },
 }
 
 # ============================================

@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.core.validators import RegexValidator
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.contrib.auth.password_validation import validate_password
 from django.db.models import Q
 from apps.sigesi.models import User, Menu, Opcion, Permiso
 
@@ -211,6 +213,14 @@ class UserCreateSerializer(serializers.ModelSerializer):
         validar_tipo_vinculacion(attrs.get('roles', []), attrs.get('tipo_vinculacion'))
         return attrs
 
+    def validate_password(self, value):
+        """Aplica AUTH_PASSWORD_VALIDATORS (settings.py) además del min_length declarativo."""
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages))
+        return value
+
     def create(self, validated_data):
         password = validated_data.pop('password')
         user = User(**validated_data)
@@ -355,6 +365,16 @@ class UserChangePasswordSerializer(serializers.Serializer):
         user = self.context['request'].user
         if not user.check_password(value):
             raise serializers.ValidationError({'message': 'La contraseña actual es incorrecta.'})
+        return value
+
+    def validate_password_nuevo(self, value):
+        """Aplica AUTH_PASSWORD_VALIDATORS (settings.py), incluyendo la
+        comparación contra los atributos del propio usuario."""
+        user = self.context['request'].user
+        try:
+            validate_password(value, user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages))
         return value
 
     def save(self):

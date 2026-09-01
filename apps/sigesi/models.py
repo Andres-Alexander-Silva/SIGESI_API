@@ -1622,6 +1622,7 @@ class Informe(models.Model):
     """Documento generado que consolida actividades, proyectos y resultados."""
 
     class TipoChoices(models.TextChoices):
+        MENSUAL = 'mensual', 'Mensual'
         SEMESTRAL = 'semestral', 'Semestral'
         ANUAL = 'anual', 'Anual'
         ESPECIAL = 'especial', 'Especial'
