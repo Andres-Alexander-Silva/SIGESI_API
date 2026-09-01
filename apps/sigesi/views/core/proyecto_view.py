@@ -18,7 +18,12 @@ class ProyectoViewSet(viewsets.ModelViewSet):
     ViewSet CRUD para la gestión de Proyectos.
     Integra control de acceso por roles y eliminación lógica segura.
     """
-    queryset = Proyecto.objects.filter(is_active=True).order_by('-created_at')
+    queryset = (
+        Proyecto.objects.filter(is_active=True)
+        .select_related('director', 'lider', 'linea_investigacion')
+        .prefetch_related('semilleros', 'estudiantes')
+        .order_by('-created_at')
+    )
     permission_classes = [ProyectoRolePermission]
 
     def get_serializer_class(self):

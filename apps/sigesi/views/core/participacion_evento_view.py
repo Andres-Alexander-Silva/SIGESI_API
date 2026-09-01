@@ -202,7 +202,7 @@ class ParticipacionEventoViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
         operation_description=(
             'Sube o reemplaza el certificado (campo multipart `certificado`) de '
             'esta participación. Extensiones permitidas: .pdf/.jpg/.jpeg/.png/'
-            '.docx/.xlsx; máximo 5 MB. Pasa por el control de acceso por fila.'
+            '.docx/.xlsx; máximo 20 MB. Pasa por el control de acceso por fila.'
         ),
         manual_parameters=[
             openapi.Parameter('certificado', openapi.IN_FORM,

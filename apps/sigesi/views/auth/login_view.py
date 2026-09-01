@@ -16,6 +16,7 @@ from apps.sigesi.serializers.auth.login_serializer import (
 )
 from apps.sigesi.middleware.authentication_middleware import JWTAuthentication
 from apps.sigesi.utils.tokens import IdentityToken, build_context_tokens, roles_payload
+from apps.sigesi.utils.throttles import LoginRateThrottle
 
 User = get_user_model()
 
@@ -23,6 +24,7 @@ User = get_user_model()
 class LoginView(APIView):
     authentication_classes = []
     permission_classes = []
+    throttle_classes = [LoginRateThrottle]
 
     @swagger_auto_schema(
         operation_summary='Iniciar Sesión',

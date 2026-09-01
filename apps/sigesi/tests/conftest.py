@@ -3,6 +3,7 @@ from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework.test import APIClient
 
 from apps.sigesi.models import (
@@ -32,6 +33,16 @@ def _envio_correo_sincrono(settings):
     """
     settings.EMAIL_DELIVERY = 'sync'
     settings.CELERY_TASK_ALWAYS_EAGER = True
+
+
+@pytest.fixture(autouse=True)
+def _reset_cache():
+    """Limpia el cache (LocMemCache, compartido por todo el proceso de test)
+    antes de cada test. Necesario para que LoginRateThrottle no acumule
+    intentos entre tests independientes que llaman a /auth/login/."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 # ---------------------------------------------------------------------------

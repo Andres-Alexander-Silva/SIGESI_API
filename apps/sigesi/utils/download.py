@@ -22,7 +22,8 @@ from drf_yasg import openapi
 
 # Validación uniforme de archivos subidos.
 ALLOWED_UPLOAD_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.docx', '.xlsx'}
-MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB
+MAX_UPLOAD_SIZE_MB = 20
+MAX_UPLOAD_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024  # RNF-07: límite físico de 20 MB por documento.
 
 
 def validate_upload_file(f):
@@ -34,7 +35,7 @@ def validate_upload_file(f):
             f"{', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))}."
         )
     if f.size > MAX_UPLOAD_SIZE:
-        raise serializers.ValidationError("El archivo no puede superar los 5MB.")
+        raise serializers.ValidationError(f"El archivo no puede superar los {MAX_UPLOAD_SIZE_MB}MB.")
 
 
 class _ArchiveFieldMixin:
@@ -117,7 +118,7 @@ class ArchiveUploadMixin(_ArchiveFieldMixin):
         manual_parameters=[
             openapi.Parameter(
                 'file', openapi.IN_FORM, type=openapi.TYPE_FILE, required=True,
-                description='Archivo a subir (pdf, jpg, png, docx, xlsx; máx 5MB).',
+                description=f'Archivo a subir (pdf, jpg, png, docx, xlsx; máx {MAX_UPLOAD_SIZE_MB}MB).',
             ),
             openapi.Parameter(
                 'field', openapi.IN_QUERY, required=False, type=openapi.TYPE_STRING,

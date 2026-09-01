@@ -1,5 +1,4 @@
 from rest_framework import viewsets, status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_yasg.utils import swagger_auto_schema
@@ -13,13 +12,17 @@ from apps.sigesi.serializers.core.linea_investigacion_serializer import (
 )
 from apps.sigesi.filters.core.linea_investigacion_filter import LineaInvestigacionFilter
 from apps.sigesi.utils.ordering import MultiFieldOrderingFilter
+from apps.sigesi.decorators.permissions import AdminOrReadOnlyPermission
 
 class LineaInvestigacionViewSet(viewsets.ModelViewSet):
     """
     ViewSet CRUD para la gestión de Líneas de Investigación.
+
+    Lectura abierta a cualquier autenticado; la escritura queda reservada
+    al administrador.
     """
     queryset = LineaInvestigacion.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AdminOrReadOnlyPermission]
 
     filter_backends = [DjangoFilterBackend, MultiFieldOrderingFilter]
     filterset_class = LineaInvestigacionFilter
