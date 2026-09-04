@@ -49,7 +49,14 @@ LOCAL_APPS = [
     'apps.sigesi'
 ]
 
-INSTALLED_APPS = ASGI_APPS + DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+# django-cleanup borra el archivo físico de un FileField/ImageField cuando se
+# elimina el registro o se reemplaza el archivo. Debe ser el ÚLTIMO app de la
+# lista (requisito de la librería para conectar sus señales correctamente).
+CLEANUP_APPS = [
+    'django_cleanup.apps.CleanupConfig',
+]
+
+INSTALLED_APPS = ASGI_APPS + DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS + CLEANUP_APPS
 
 # ============================================
 # MIDDLEWARE

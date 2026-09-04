@@ -235,11 +235,9 @@ class ParticipacionEventoViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
             )
         validate_upload_file(archivo)
 
-        anterior = obj.certificado
         obj.certificado = archivo
+        # django-cleanup borra el certificado anterior al detectar el cambio (pre_save).
         obj.save(update_fields=['certificado', 'updated_at'])
-        if anterior and anterior.name and anterior.name != obj.certificado.name:
-            anterior.delete(save=False)
 
         # Notifica al participante de que su certificado fue cargado/reemplazado.
         self._emitir_a_participante(

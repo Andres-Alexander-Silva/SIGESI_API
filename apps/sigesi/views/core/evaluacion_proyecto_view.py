@@ -6,34 +6,7 @@ from django.db.models import Q
 import django_filters
 from apps.sigesi.models import EvaluacionProyecto, User, Proyecto
 from apps.sigesi.serializers.core.evaluacion_proyecto_serializer import EvaluacionProyectoSerializer
-
-class EvaluacionProyectoPermission(permissions.BasePermission):
-    """
-    Permisos personalizados para Evaluación de Proyectos.
-    """
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-            
-        # Estudiantes no pueden crear evaluaciones
-        if request.method not in permissions.SAFE_METHODS:
-            if request.user.tiene_rol(User.RolChoices.ESTUDIANTE) and not request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
-                return False
-                
-        return True
-
-    def has_object_permission(self, request, view, obj):
-        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
-            return True
-            
-        if request.method in permissions.SAFE_METHODS:
-            return True
-            
-        # Modificación/eliminación: Solo el autor (evaluador) o el admin
-        if request.method in ['PUT', 'PATCH', 'DELETE']:
-            return obj.evaluador == request.user
-
-        return False
+from apps.sigesi.decorators.permissions import EvaluacionProyectoPermission
 
 
 class EvaluacionProyectoFilter(django_filters.FilterSet):

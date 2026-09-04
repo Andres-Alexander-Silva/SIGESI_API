@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.sigesi.models import ProduccionAcademica, Proyecto
 from apps.sigesi.utils.aval import validar_semilleros_avalados
+from apps.sigesi.utils.download import validate_upload_file
 
 
 class ProduccionAcademicaListSerializer(serializers.ModelSerializer):
@@ -64,6 +65,16 @@ class ProduccionAcademicaCreateUpdateSerializer(serializers.ModelSerializer):
             'doi', 'url_repositorio', 'revista_evento', 'fecha_publicacion',
             'estado', 'archivo', 'certificado',
         ]
+
+    def validate_archivo(self, value):
+        if value:
+            validate_upload_file(value)
+        return value
+
+    def validate_certificado(self, value):
+        if value:
+            validate_upload_file(value)
+        return value
 
     def validate(self, data):
         semillero = data.get('semillero') or (

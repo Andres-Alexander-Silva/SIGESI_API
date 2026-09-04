@@ -191,11 +191,7 @@ class SemilleroViewSet(viewsets.ModelViewSet):
         )
         was_aprobado = semillero.estado_aval == Semillero.EstadoAvalChoices.APROBADO
 
-        # Limpieza de archivo anterior para evitar archivos huérfanos
-        nuevo_archivo = serializer.validated_data.get('archivo_aval')
-        if nuevo_archivo and semillero.archivo_aval:
-            semillero.archivo_aval.delete(save=False)
-
+        # django-cleanup borra el archivo de aval anterior al detectar el cambio (pre_save).
         serializer.save()
 
         if going_aprobado and not was_aprobado:

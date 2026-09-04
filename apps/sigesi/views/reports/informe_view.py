@@ -6,32 +6,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from apps.sigesi.models import Informe, User, Semillero
 from apps.sigesi.serializers.reports.informe_serializer import InformeSerializer, GenerarInformeSerializer
 from apps.sigesi.services.informes_service import InformesService
+from apps.sigesi.utils.download import ArchiveDownloadMixin
+from apps.sigesi.decorators.permissions import InformePermission
 import csv
 
-class InformePermission(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-            
-        if view.action in ['generar', 'exportar']:
-            if request.user.tiene_rol(User.RolChoices.ESTUDIANTE) and not request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
-                return False
-                
-        return True
-
-    def has_object_permission(self, request, view, obj):
-        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
-            return True
-            
-        if request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
-            return obj.semillero.director == request.user or obj.semillero.grupo_investigacion.director == request.user
-            
-        if request.user.tiene_rol(User.RolChoices.ESTUDIANTE):
-            return obj.semillero.matriculas.filter(estudiante=request.user, estado='activa').exists()
-
-        return False
-
-class InformeViewSet(viewsets.ModelViewSet):
+class InformeViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
     """ViewSet para generar y consultar informes de semilleros."""
     swagger_tags = ['Informes']  # Sección de documentación (drf-yasg)
     queryset = Informe.objects.all().select_related('semillero', 'generado_por')

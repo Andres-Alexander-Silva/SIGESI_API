@@ -2,7 +2,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth import get_user_model
 from apps.sigesi.models import Semillero, GrupoInvestigacion
-from apps.sigesi.utils.download import MAX_UPLOAD_SIZE, MAX_UPLOAD_SIZE_MB
+from apps.sigesi.utils.download import validate_upload_file
 
 User = get_user_model()
 
@@ -60,14 +60,7 @@ class SemilleroAvalSerializer(serializers.ModelSerializer):
 
     def validate_archivo_aval(self, value):
         if value:
-            import os
-            ext = os.path.splitext(value.name)[1].lower()
-            if ext != '.pdf':
-                raise serializers.ValidationError("El archivo del aval debe ser un documento PDF (.pdf).")
-            
-            # RNF-07: límite físico de 20 MB por documento.
-            if value.size > MAX_UPLOAD_SIZE:
-                raise serializers.ValidationError(f"El tamaño del archivo no puede exceder los {MAX_UPLOAD_SIZE_MB} MB.")
+            validate_upload_file(value, extensiones={'.pdf'})
         return value
 
     def validate(self, data):
@@ -149,4 +142,9 @@ class SemilleroCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Debe proporcionar un grupo de investigación válido.")
         if not value.is_active:
             raise serializers.ValidationError("El grupo de investigación seleccionado no está activo.")
+        return value
+
+    def validate_logo(self, value):
+        if value:
+            validate_upload_file(value, extensiones={'.jpg', '.jpeg', '.png'})
         return value

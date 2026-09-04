@@ -79,6 +79,7 @@ TAG_GROUPS = [
         'Informes',
         'Exportar Reportes',
         'Formatos Docente',
+        'Formatos Institucionales',
     ]),
     ('Sistema', [
         'Estado del Servicio',
@@ -122,6 +123,7 @@ TAG_DESCRIPTIONS = {
     'Informes': 'Generación de informes.',
     'Exportar Reportes': 'Exportación de reportes a formato XLSX.',
     'Formatos Docente': 'Descarga de formatos institucionales para docentes.',
+    'Formatos Institucionales': 'Repositorio administrable de formatos institucionales (alta, versión, retiro).',
     'Estado del Servicio': 'Endpoints de salud y disponibilidad (ping/health).',
 }
 

@@ -4,13 +4,7 @@ from django.db.models import Count, Q, FloatField, Case, When
 from django.db.models.functions import Cast
 from apps.sigesi.models import Proyecto, Semillero, User
 from apps.sigesi.serializers.reports.reportes_serializer import ReporteAcademicoProyectoSerializer, ReporteGlobalSemilleroSerializer
-
-class ReportesAcademicosPermission(permissions.BasePermission):
-    """
-    Control de acceso a reportes académicos.
-    """
-    def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated
+from apps.sigesi.decorators.permissions import ReportesAcademicosPermission
 
 class ReporteAcademicoProyectoList(generics.ListAPIView):
     """

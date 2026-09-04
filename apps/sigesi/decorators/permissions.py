@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
-from apps.sigesi.models import User, GrupoInvestigacion, Actividad
+from apps.sigesi.models import User, GrupoInvestigacion
 from apps.sigesi.utils.alcance import participantes_en_alcance
 
 
@@ -366,6 +366,22 @@ class FormatosDocentePermission(BasePermission):
         ])
 
 
+class FormatoInstitucionalPermission(BasePermission):
+    """Repositorio administrable de formatos institucionales (HU-021, fase F4).
+    - Administrador: CRUD total (agregar, versionar, retirar un formato).
+    - Director de Semillero: solo lectura (consultar y descargar).
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+        if request.method in SAFE_METHODS:
+            return request.user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO)
+        return False
+
+
 class ProduccionAcademicaRolePermission(BasePermission):
     """
     Producción Académica:
@@ -474,64 +490,51 @@ class CronogramaProyectoRolePermission(BasePermission):
         return False
 
 
-class EvidenciaRolePermission(BasePermission):
+class EvidenciaPermission(BasePermission):
     """
-    Control de acceso a nivel de vista y objeto para Evidencias.
-    - El usuario asignado (responsable de la actividad) puede realizar CRUD completo.
-    - Administrador puede ver todas las evidencias (solo lectura).
-    - Director de Grupo puede ver todas las evidencias de los semilleros en su grupo.
-    - Director de Semillero y Líder Estudiantil pueden ver todas las evidencias de su semillero.
-    """
+    Permisos de Evidencia (Avances). Regla de creación: cualquier miembro del
+    proyecto (estudiante vinculado, director o líder) puede registrar una
+    evidencia — la valida ``EvidenciaViewSet.perform_create`` a nivel de
+    objeto, no esta clase; el gating fino por rol lo aporta el RBAC dinámico
+    (Menu/Opcion/Permiso), no esta clase de permisos de bajo nivel.
 
+    Antes vivía duplicada: esta versión (activa) definida en
+    ``views/core/evidencia_view.py``, y una versión más estricta
+    (``EvidenciaRolePermission``, exigía ser responsable de la actividad para
+    crear) definida aquí pero sin ningún uso. Se conserva el comportamiento
+    activo — ver docs/HU-021_PLAN_IMPLEMENTACION.md, hallazgo H6 y fase F6.
+    """
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-
-        user = request.user
-
-        # Todos los autenticados pueden intentar hacer GET (el queryset o has_object_permission filtrará)
-        if request.method in SAFE_METHODS:
-            return True
-
-        # Para crear (POST), verificamos que el usuario sea el responsable de la actividad
-        if request.method == 'POST':
-            actividad_id = request.data.get('actividad')
-            if actividad_id:
-                return Actividad.objects.filter(id=actividad_id, responsable=user).exists()
-            return False
-
-        # Para PUT, PATCH, DELETE se permitirá a nivel de vista, pero se denegará a nivel de objeto 
-        # si no es el responsable.
-        if request.method in ['PUT', 'PATCH', 'DELETE']:
-            return True
-
-        return False
+        return request.user and request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
-        user = request.user
-
-        # El usuario asignado a la actividad tiene permisos completos (CRUD)
-        if obj.actividad.responsable == user:
+        # Admin can do anything
+        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
             return True
 
-        # Para los demás, solo se permite lectura (SAFE_METHODS)
-        if request.method not in SAFE_METHODS:
-            return False
+        # Para ver (GET)
+        if request.method in SAFE_METHODS:
+            # Estudiante: solo sus propios archivos
+            if request.user.tiene_rol(User.RolChoices.ESTUDIANTE) and not request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.LIDER_ESTUDIANTIL]):
+                return obj.subido_por == request.user
+            # Director/Lider: pueden ver si dirigen el proyecto o si son parte
+            proyecto = obj.actividad.proyecto
+            is_director_or_lider = (proyecto.director == request.user or proyecto.lider == request.user)
+            if is_director_or_lider:
+                return True
+            return obj.subido_por == request.user
 
-        # Administrador puede leer todas las evidencias
-        if user.tiene_rol(User.RolChoices.ADMINISTRADOR):
-            return True
+        # Para modificar/eliminar
+        if request.user.tiene_rol(User.RolChoices.ESTUDIANTE) and not request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
+            return obj.subido_por == request.user
 
-        # Director de Grupo puede leer las evidencias de semilleros de su grupo
-        if user.tiene_rol(User.RolChoices.DIRECTOR_GRUPO):
-            return obj.actividad.proyecto.semilleros.filter(grupo_investigacion__director=user).exists()
+        # Director puede agregar observaciones (actualizar)
+        if request.method in ['PUT', 'PATCH']:
+            proyecto = obj.actividad.proyecto
+            if proyecto.director == request.user or proyecto.lider == request.user:
+                return True
 
-        # Director de Semillero y Líder Estudiantil pueden leer evidencias de su semillero
-        if user.tiene_alguno_de([User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.LIDER_ESTUDIANTIL]):
-            return obj.actividad.proyecto.semilleros.filter(director=user).exists() or \
-                   obj.actividad.proyecto.semilleros.filter(lider_estudiantil=user).exists()
-
-        return False
+        return obj.subido_por == request.user
 
 
 class PlanAccionRolePermission(BasePermission):
@@ -1021,3 +1024,67 @@ class PostulacionRolePermission(BasePermission):
             user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO)
             and obj.semillero.director_id == user.id
         )
+
+
+class EvaluacionProyectoPermission(BasePermission):
+    """
+    Permisos personalizados para Evaluación de Proyectos.
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        # Estudiantes no pueden crear evaluaciones
+        if request.method not in SAFE_METHODS:
+            if request.user.tiene_rol(User.RolChoices.ESTUDIANTE) and not request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
+                return False
+
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if request.method in SAFE_METHODS:
+            return True
+
+        # Modificación/eliminación: Solo el autor (evaluador) o el admin
+        if request.method in ['PUT', 'PATCH', 'DELETE']:
+            return obj.evaluador == request.user
+
+        return False
+
+
+class InformePermission(BasePermission):
+    """
+    Permisos personalizados para Informes.
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if getattr(view, 'action', None) in ['generar', 'exportar']:
+            if request.user.tiene_rol(User.RolChoices.ESTUDIANTE) and not request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
+                return False
+
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+
+        if request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
+            return obj.semillero.director == request.user or obj.semillero.grupo_investigacion.director == request.user
+
+        if request.user.tiene_rol(User.RolChoices.ESTUDIANTE):
+            return obj.semillero.matriculas.filter(estudiante=request.user, estado='activa').exists()
+
+        return False
+
+
+class ReportesAcademicosPermission(BasePermission):
+    """
+    Control de acceso a reportes académicos.
+    """
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated

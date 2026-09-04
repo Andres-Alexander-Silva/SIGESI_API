@@ -21,6 +21,7 @@ coverage==7.14.0
 cryptography==46.0.7
 daphne==4.2.1
 Django==6.0.4
+django-cleanup==9.0.0
 django-cors-headers==4.9.0
 django-filter==25.2
 djangorestframework==3.17.1

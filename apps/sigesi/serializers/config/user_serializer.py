@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.contrib.auth.password_validation import validate_password
 from django.db.models import Q
 from apps.sigesi.models import User, Menu, Opcion, Permiso
+from apps.sigesi.utils.download import validate_upload_file
 
 
 def validar_tipo_vinculacion(roles, tipo_vinculacion):
@@ -316,6 +317,11 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 'Ya existe un usuario registrado con este correo electrónico.'
             )
+        return value
+
+    def validate_foto(self, value):
+        if value:
+            validate_upload_file(value, extensiones={'.jpg', '.jpeg', '.png'})
         return value
 
 
