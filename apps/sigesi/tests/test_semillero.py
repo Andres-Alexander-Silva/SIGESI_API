@@ -194,10 +194,16 @@ def test_admin_aval_patch_approve_without_file_fails(auth_client, admin_user, se
     assert "cargar el documento digital" in resp.json()["non_field_errors"][0]
 
 
-@pytest.mark.django_db
-def test_admin_aval_patch_overwrites_and_cleans_up_old_file(auth_client, admin_user, semillero_sin_aprobar):
+@pytest.mark.django_db(transaction=True)
+def test_admin_aval_patch_overwrites_and_cleans_up_old_file(
+    auth_client, admin_user, semillero_sin_aprobar, settings, tmp_path,
+):
+    """django-cleanup borra el archivo anterior en ``transaction.on_commit()``,
+    por lo que este test necesita ``transaction=True`` (si no, el commit nunca
+    ocurre dentro del test y el callback no se dispara)."""
+    settings.MEDIA_ROOT = str(tmp_path)
     client = auth_client(admin_user)
-    
+
     # 1. Cargar primer PDF
     pdf_file_1 = SimpleUploadedFile("aval1.pdf", b"%PDF-1.4 first", content_type="application/pdf")
     resp = client.patch(
@@ -226,15 +232,9 @@ def test_admin_aval_patch_overwrites_and_cleans_up_old_file(auth_client, admin_u
         format='multipart'
     )
     assert resp.status_code == 200
-    
+
     # 3. Validar que el primer archivo fue eliminado
     assert not os.path.exists(old_file_path)
-    
-    # Limpieza final del segundo archivo
-    semillero_sin_aprobar.refresh_from_db()
-    new_file_path = semillero_sin_aprobar.archivo_aval.path
-    if os.path.exists(new_file_path):
-        os.remove(new_file_path)
 
 
 @pytest.mark.django_db

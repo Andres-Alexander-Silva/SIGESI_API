@@ -6,6 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from apps.sigesi.models import Informe, User, Semillero
 from apps.sigesi.serializers.reports.informe_serializer import InformeSerializer, GenerarInformeSerializer
 from apps.sigesi.services.informes_service import InformesService
+from apps.sigesi.utils.download import ArchiveDownloadMixin
 import csv
 
 class InformePermission(permissions.BasePermission):
@@ -31,7 +32,7 @@ class InformePermission(permissions.BasePermission):
 
         return False
 
-class InformeViewSet(viewsets.ModelViewSet):
+class InformeViewSet(ArchiveDownloadMixin, viewsets.ModelViewSet):
     """ViewSet para generar y consultar informes de semilleros."""
     swagger_tags = ['Informes']  # Sección de documentación (drf-yasg)
     queryset = Informe.objects.all().select_related('semillero', 'generado_por')

@@ -133,14 +133,3 @@ class EvidenciaViewSet(ArchiveDownloadMixin, ArchiveUploadMixin, viewsets.ModelV
                 raise PermissionDenied("El usuario no pertenece al proyecto sobre el que intenta registrar el avance.")
 
         serializer.save(subido_por=user)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        # "eliminar un avance sin evidencias asociadas" -> No aplica estrictamente dado el modelo,
-        # pero permitiremos eliminar la Evidencia normalmente.
-        if instance.archivo:
-            # Archivo se eliminará al eliminar el registro (usualmente se maneja por signals o django-cleanup, 
-            # pero aquí borramos el registro).
-            pass
-        self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)

@@ -118,7 +118,8 @@ class ArchiveUploadMixin(_ArchiveFieldMixin):
     Reutiliza el serializer create/update del recurso (declarar
     ``upload_serializer_class``) en modo parcial, conservando así el gate de aval
     y la autorización de una actualización normal. Aplica además la validación
-    uniforme de archivo y limpia el archivo anterior al reemplazarlo.
+    uniforme de archivo; el archivo anterior lo limpia django-cleanup al
+    detectar el cambio de campo (ver INSTALLED_APPS en settings.py).
     """
     upload_serializer_class = None
 
@@ -160,16 +161,12 @@ class ArchiveUploadMixin(_ArchiveFieldMixin):
             )
         validate_upload_file(archivo)
 
-        old_file = getattr(obj, field_name, None)
         serializer = self.upload_serializer_class(
             obj, data={field_name: archivo}, partial=True,
             context={'request': request},
         )
         serializer.is_valid(raise_exception=True)
+        # django-cleanup borra el archivo anterior al detectar el cambio (pre_save).
         serializer.save()
-
-        new_file = getattr(obj, field_name, None)
-        if old_file and new_file and old_file.name != new_file.name:
-            old_file.delete(save=False)
 
         return Response(self.get_serializer(obj).data, status=status.HTTP_200_OK)
