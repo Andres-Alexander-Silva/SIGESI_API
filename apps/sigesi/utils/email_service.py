@@ -80,7 +80,7 @@ def enviar_correo_recuperacion(destinatario_email, destinatario_nombre, token):
         mensaje, no que el destinatario lo haya recibido — la entrega final
         puede fallar por filtrado/cuarentena del lado del receptor.
     """
-    enlace = f"{settings.FRONTEND_URL}/recovery-password/{token}"
+    enlace = f"{settings.FRONTEND_URL}/reset-password?token={token}"
 
     html_content = f"""
     <!DOCTYPE html>
