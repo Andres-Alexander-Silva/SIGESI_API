@@ -152,7 +152,7 @@ def test_admin_aval_patch_with_invalid_extension_fails(auth_client, admin_user, 
     )
     assert resp.status_code == 400
     assert "archivo_aval" in resp.json()
-    assert "documento PDF" in resp.json()["archivo_aval"][0]
+    assert "no permitido" in resp.json()["archivo_aval"][0]
 
 
 @pytest.mark.django_db
@@ -173,7 +173,7 @@ def test_admin_aval_patch_with_excessive_size_fails(auth_client, admin_user, sem
     )
     assert resp.status_code == 400
     assert "archivo_aval" in resp.json()
-    assert "exceder los 20 MB" in resp.json()["archivo_aval"][0]
+    assert "20MB" in resp.json()["archivo_aval"][0]
 
 
 @pytest.mark.django_db

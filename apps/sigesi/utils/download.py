@@ -26,16 +26,26 @@ MAX_UPLOAD_SIZE_MB = 20
 MAX_UPLOAD_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024  # RNF-07: límite físico de 20 MB por documento.
 
 
-def validate_upload_file(f):
-    """Valida extensión y tamaño; lanza ValidationError (-> 400) si no cumple."""
+def validate_upload_file(f, extensiones=None, max_size=None):
+    """Valida extensión y tamaño; lanza ValidationError (-> 400) si no cumple.
+
+    Único validador de archivos del proyecto (ver
+    docs/HU-021_PLAN_IMPLEMENTACION.md, fase F2). ``extensiones``/``max_size``
+    permiten restringir a un subconjunto — p. ej. solo ``{'.pdf'}`` para el
+    aval institucional — sin duplicar la lógica de validación.
+    """
+    extensiones = extensiones if extensiones is not None else ALLOWED_UPLOAD_EXTENSIONS
+    max_size = max_size if max_size is not None else MAX_UPLOAD_SIZE
+
     ext = os.path.splitext(f.name)[1].lower()
-    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+    if ext not in extensiones:
         raise serializers.ValidationError(
             f"Tipo de archivo no permitido. Válidos: "
-            f"{', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))}."
+            f"{', '.join(sorted(extensiones))}."
         )
-    if f.size > MAX_UPLOAD_SIZE:
-        raise serializers.ValidationError(f"El archivo no puede superar los {MAX_UPLOAD_SIZE_MB}MB.")
+    if f.size > max_size:
+        max_mb = max_size // (1024 * 1024)
+        raise serializers.ValidationError(f"El archivo no puede superar los {max_mb}MB.")
 
 
 class _ArchiveFieldMixin:

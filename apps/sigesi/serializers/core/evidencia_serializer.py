@@ -1,8 +1,7 @@
-import os
 from rest_framework import serializers
 from apps.sigesi.models import Evidencia, Actividad
 from apps.sigesi.utils.aval import validar_semilleros_avalados
-from apps.sigesi.utils.download import MAX_UPLOAD_SIZE, MAX_UPLOAD_SIZE_MB
+from apps.sigesi.utils.download import validate_upload_file
 from django.core.exceptions import ValidationError
 
 class EvidenciaSerializer(serializers.ModelSerializer):
@@ -29,17 +28,7 @@ class EvidenciaSerializer(serializers.ModelSerializer):
     def validate_archivo(self, value):
         if not value:
             return value
-            
-        # Validate extension
-        ext = os.path.splitext(value.name)[1].lower()
-        valid_extensions = ['.pdf', '.jpg', '.jpeg', '.png', '.docx']
-        if ext not in valid_extensions:
-            raise serializers.ValidationError(f"Tipo de archivo no permitido. Extensiones válidas: {', '.join(valid_extensions)}")
-            
-        # Validate size (RNF-07: 20MB)
-        if value.size > MAX_UPLOAD_SIZE:
-            raise serializers.ValidationError(f"El archivo no puede superar los {MAX_UPLOAD_SIZE_MB}MB.")
-            
+        validate_upload_file(value)
         return value
 
     def validate(self, data):

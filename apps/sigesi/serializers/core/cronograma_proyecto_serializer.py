@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from apps.sigesi.models import CronogramaProyecto
 from apps.sigesi.utils.aval import validar_semilleros_avalados
+from apps.sigesi.utils.download import validate_upload_file
 
 
 class CronogramaProyectoListSerializer(serializers.ModelSerializer):
@@ -30,6 +31,11 @@ class CronogramaProyectoCreateUpdateSerializer(serializers.ModelSerializer):
             'fecha_inicio', 'fecha_fin', 'fecha_entrega',
             'estado_actividad', 'archivo_cronograma', 'observaciones',
         ]
+
+    def validate_archivo_cronograma(self, value):
+        if value:
+            validate_upload_file(value)
+        return value
 
     def validate(self, data):
         fecha_inicio = data.get('fecha_inicio')

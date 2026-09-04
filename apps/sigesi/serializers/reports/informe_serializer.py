@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from apps.sigesi.models import Informe, Semillero
 from apps.sigesi.utils.aval import validar_semilleros_avalados
+from apps.sigesi.utils.download import validate_upload_file
 
 
 class InformeSerializer(serializers.ModelSerializer):
@@ -8,6 +9,11 @@ class InformeSerializer(serializers.ModelSerializer):
         model = Informe
         fields = '__all__'
         read_only_fields = ['id', 'generado_por', 'fecha_generacion', 'created_at', 'updated_at', 'contenido']
+
+    def validate_archivo(self, value):
+        if value:
+            validate_upload_file(value)
+        return value
 
     def validate(self, data):
         semillero = data.get('semillero') or (self.instance.semillero if self.instance else None)
