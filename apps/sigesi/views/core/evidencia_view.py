@@ -7,42 +7,7 @@ import django_filters
 from apps.sigesi.models import Evidencia, User, Proyecto
 from apps.sigesi.serializers.core.evidencia_serializer import EvidenciaSerializer
 from apps.sigesi.utils.download import ArchiveDownloadMixin, ArchiveUploadMixin
-
-class EvidenciaPermission(permissions.BasePermission):
-    """
-    Permisos personalizados para Evidencia (Avances).
-    """
-    def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated
-
-    def has_object_permission(self, request, view, obj):
-        # Admin can do anything
-        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
-            return True
-            
-        # Para ver (GET)
-        if request.method in permissions.SAFE_METHODS:
-            # Estudiante: solo sus propios archivos
-            if request.user.tiene_rol(User.RolChoices.ESTUDIANTE) and not request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO, User.RolChoices.LIDER_ESTUDIANTIL]):
-                return obj.subido_por == request.user
-            # Director/Lider: pueden ver si dirigen el proyecto o si son parte
-            proyecto = obj.actividad.proyecto
-            is_director_or_lider = (proyecto.director == request.user or proyecto.lider == request.user)
-            if is_director_or_lider:
-                return True
-            return obj.subido_por == request.user
-
-        # Para modificar/eliminar
-        if request.user.tiene_rol(User.RolChoices.ESTUDIANTE) and not request.user.tiene_alguno_de([User.RolChoices.DIRECTOR_GRUPO, User.RolChoices.DIRECTOR_SEMILLERO]):
-            return obj.subido_por == request.user
-
-        # Director puede agregar observaciones (actualizar)
-        if request.method in ['PUT', 'PATCH']:
-            proyecto = obj.actividad.proyecto
-            if proyecto.director == request.user or proyecto.lider == request.user:
-                return True
-
-        return obj.subido_por == request.user
+from apps.sigesi.decorators.permissions import EvidenciaPermission
 
 
 class EvidenciaFilter(django_filters.FilterSet):
