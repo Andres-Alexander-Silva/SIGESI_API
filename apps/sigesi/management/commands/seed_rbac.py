@@ -8,9 +8,10 @@ se toca aquí: sigue siendo la fuente de verdad de esos seis menús base.
 Este comando cubre las rutas del módulo de Gestión de Evidencias y
 Repositorio Académico (HU-021) que el cliente ya invoca vía `can(url, accion)`
 pero para las que nunca existió una fila `Opcion`: /avances, /produccion,
-/participaciones_evento, /eventos, /proyectos y /actividades. Sin esas filas,
-`can()` falla en cerrado (ver `PermissionsContext.tsx` en SIGESI_CLIENT) y
-ningún rol —ni el administrador— puede escribir en esas páginas.
+/participaciones_evento, /eventos, /proyectos, /actividades y /formatos. Sin
+esas filas, `can()` falla en cerrado (ver `PermissionsContext.tsx` en
+SIGESI_CLIENT) y ningún rol —ni el administrador— puede escribir en esas
+páginas.
 
 Los strings de `url` deben coincidir EXACTAMENTE con los que el cliente
 invoca. Tres de ellos son deliberadamente distintos del nombre del recurso
@@ -47,6 +48,7 @@ OPCIONES = [
     ('Producción y Evidencias', 'Eventos',                    '/eventos'),
     ('Producción y Evidencias', 'Proyectos',                  '/proyectos'),
     ('Producción y Evidencias', 'Actividades',                '/actividades'),
+    ('Producción y Evidencias', 'Formatos Institucionales',   '/formatos'),
 ]
 
 # (url_opcion, rol, puede_consultar, puede_crear, puede_actualizar, puede_eliminar)
@@ -112,6 +114,10 @@ PERMISOS = [
     ('/actividades', R.DIRECTOR_SEMILLERO,  True, True,  True,  True),
     ('/actividades', R.LIDER_ESTUDIANTIL,   True, True,  True,  True),
     ('/actividades', R.ESTUDIANTE,          True, False, False, False),
+
+    # ── /formatos (FormatoInstitucionalPermission: admin CRUD, director_semillero solo lectura) ──
+    ('/formatos', R.ADMINISTRADOR,       True, True,  True,  True),
+    ('/formatos', R.DIRECTOR_SEMILLERO,  True, False, False, False),
 ]
 
 

@@ -21,6 +21,7 @@ DOCUMENTAL_URLS = [
     '/eventos',
     '/proyectos',
     '/actividades',
+    '/formatos',
 ]
 
 

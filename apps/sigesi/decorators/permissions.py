@@ -366,6 +366,22 @@ class FormatosDocentePermission(BasePermission):
         ])
 
 
+class FormatoInstitucionalPermission(BasePermission):
+    """Repositorio administrable de formatos institucionales (HU-021, fase F4).
+    - Administrador: CRUD total (agregar, versionar, retirar un formato).
+    - Director de Semillero: solo lectura (consultar y descargar).
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.tiene_rol(User.RolChoices.ADMINISTRADOR):
+            return True
+        if request.method in SAFE_METHODS:
+            return request.user.tiene_rol(User.RolChoices.DIRECTOR_SEMILLERO)
+        return False
+
+
 class ProduccionAcademicaRolePermission(BasePermission):
     """
     Producción Académica:

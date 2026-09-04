@@ -1,19 +1,21 @@
-"""Tests de los endpoints de formatos para administradores y directores de semillero.
+"""Tests del endpoint de descarga masiva de formatos para administradores y
+directores de semillero.
 
-Cubre /api/v1/informes/formularios-docente/ (paquete .zip según rol/tipo de
-vinculación) y /api/v1/informes/formularios-docente/descargar/?form_name=<slug>
-(formato individual): camino feliz por rol permitido, 403 por rol no permitido, y
-las reglas de negocio (usuario sin tipo de vinculación, usuario sin rol válido,
-slug desconocido).
+Cubre /api/v1/informes/formularios-docente/ (paquete .zip armado sobre la
+marcha desde FormatoInstitucional, según rol/tipo de vinculación): camino
+feliz por rol permitido, 403 por rol no permitido, y las reglas de negocio
+(usuario sin tipo de vinculación, usuario sin rol válido).
+
+La descarga individual por slug vivía aquí como `FormularioDocenteDetailView`
+y se retiró — quedó cubierta por FormatoInstitucionalViewSet
+(`{slug}/archive/download/`), ver test_formato_institucional.py.
 """
 import pytest
 
 from apps.sigesi.models import User
-from apps.sigesi.views.reports.formatos_docente_view import _safe_media_path
 
 
 BULK = '/api/v1/informes/formularios-docente/'
-DETAIL = '/api/v1/informes/formularios-docente/descargar/'
 ZIP_MAGIC = b'PK\x03\x04'  # un .zip empieza con esta firma
 
 
@@ -123,59 +125,3 @@ def test_403_roles_no_permitidos_en_bulk(auth_client, director_semillero, rol):
     resp = auth_client(usuario).get(f'{BULK}?user={director_semillero.id}')
 
     assert resp.status_code == 403
-
-
-# ---------------------------------------------------------------------------
-# Formato individual
-# ---------------------------------------------------------------------------
-
-@pytest.mark.django_db
-@pytest.mark.parametrize('slug', [
-    'plan-accion-semillero', 'plan-accion-grupo', 'gestion-semillero',
-    'solicitud-horas-directores', 'control-cumplimiento-produccion', 'informe-mensual',
-])
-def test_descarga_formato_individual(auth_client, admin_user, slug):
-    resp = auth_client(admin_user).get(f'{DETAIL}?form_name={slug}')
-
-    assert resp.status_code == 200, resp.content[:200]
-    assert 'attachment' in resp['Content-Disposition']
-    assert len(_body(resp)) > 0
-
-
-@pytest.mark.django_db
-def test_formato_individual_lo_descarga_director_semillero(auth_client, director_semillero):
-    resp = auth_client(director_semillero).get(f'{DETAIL}?form_name=plan-accion-semillero')
-    assert resp.status_code == 200
-
-
-@pytest.mark.django_db
-def test_formato_individual_slug_insensible_a_mayusculas(auth_client, admin_user):
-    resp = auth_client(admin_user).get(f'{DETAIL}?form_name=PLAN-ACCION-SEMILLERO')
-    assert resp.status_code == 200
-
-
-@pytest.mark.django_db
-def test_400_formato_individual_sin_form_name(auth_client, admin_user):
-    resp = auth_client(admin_user).get(DETAIL)
-    assert resp.status_code == 400
-
-
-@pytest.mark.django_db
-def test_404_formato_individual_desconocido(auth_client, admin_user):
-    resp = auth_client(admin_user).get(f'{DETAIL}?form_name=no-existe')
-    assert resp.status_code == 404
-
-
-@pytest.mark.django_db
-def test_403_rol_no_permitido_en_formato_individual(auth_client, estudiante):
-    resp = auth_client(estudiante).get(f'{DETAIL}?form_name=plan-accion-semillero')
-    assert resp.status_code == 403
-
-
-# ---------------------------------------------------------------------------
-# Guarda anti-traversal (defensa en profundidad de _safe_media_path)
-# ---------------------------------------------------------------------------
-
-def test_safe_media_path_bloquea_traversal():
-    assert _safe_media_path('../../config/settings.py') is None
-    assert _safe_media_path('no/existe.docx') is None

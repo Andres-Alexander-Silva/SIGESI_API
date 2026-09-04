@@ -1674,6 +1674,48 @@ class Informe(models.Model):
         return f"{self.titulo} - {self.semillero} ({self.semestre})"
 
 
+class FormatoInstitucional(models.Model):
+    """Formato institucional (plantilla) descargable por directores de semillero.
+
+    Reemplaza el catálogo hardcodeado que vivía en
+    ``views/reports/formatos_docente_view.py`` (HU-021, fase F4): antes,
+    agregar o versionar un formato exigía editar código y desplegar.
+    """
+
+    class CategoriaChoices(models.TextChoices):
+        PLANEACION = 'planeacion', 'Planeación'
+        GESTION = 'gestion', 'Gestión'
+        ADMINISTRATIVOS_Y_ACADEMICOS = 'administrativos_y_academicos', 'Administrativos y Académicos'
+        MENSUAL = 'mensual', 'Mensual'
+
+    slug = models.SlugField(max_length=80, unique=True, verbose_name='Slug')
+    nombre = models.CharField(max_length=200, verbose_name='Nombre')
+    descripcion = models.TextField(blank=True, verbose_name='Descripción')
+    categoria = models.CharField(
+        max_length=40, choices=CategoriaChoices.choices, verbose_name='Categoría')
+    archivo = models.FileField(upload_to='formatos/%Y/', verbose_name='Archivo')
+    tipo_vinculacion = models.CharField(
+        max_length=20,
+        choices=User.TipoVinculacionChoices.choices,
+        blank=True,
+        null=True,
+        verbose_name='Tipo de vinculación',
+        help_text='Vacío = aplica a todos los tipos de vinculación.',
+    )
+    version = models.CharField(max_length=20, blank=True, verbose_name='Versión')
+    estado = models.BooleanField(default=True, verbose_name='Activo')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Formato Institucional'
+        verbose_name_plural = 'Formatos Institucionales'
+        ordering = ['categoria', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
 # ============================================================
 # NOTIFICACIONES
 # ============================================================
